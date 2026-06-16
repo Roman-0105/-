@@ -28,6 +28,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.tab === 'comparison' && !G.chartsBuilt) buildCharts();
     if (btn.dataset.tab === 'exceedances' && !G.exceedBuilt) buildExceedances();
     if (btn.dataset.tab === 'entry' && !G.entryBuilt) buildEntryForm();
+    if (btn.dataset.tab === 'upload' && !G.uploadBuilt) initUploadTab();
   });
 });
 
@@ -78,22 +79,18 @@ async function loadDashboard() {
   try {
     await loadNorms();
 
-    // Сводная таблица
     const { data: summary, error } = await sb.from('v_summary').select('*').order('lab_number');
     if (error) throw error;
     G.summary = summary || [];
     statusEl.textContent = '✅ Supabase подключён';
     statusEl.className = 'ok';
 
-    // KPI
     document.getElementById('kpi-samples').textContent = G.summary.length;
     document.getElementById('kpi-protocols').textContent = [...new Set(G.summary.map(r => r.protocol))].length;
 
-    // Кол-во параметров
     const { count: pCount } = await sb.from('parameters').select('id', { count: 'exact', head: true });
     document.getElementById('kpi-params').textContent = pCount ?? 49;
 
-    // Превышения
     renderSummaryTable();
     await countExceedances();
     renderSeriesChart();
@@ -102,7 +99,6 @@ async function loadDashboard() {
     statusEl.textContent = '❌ Нет соединения';
     statusEl.className = 'err';
     console.error(e);
-    // Demo mode — static data
     loadDemoData();
   }
 }
@@ -193,7 +189,6 @@ async function loadSamples() {
 
   if (error || !data) { tbody.innerHTML = '<tr><td colspan="10" class="empty">Ошибка загрузки</td></tr>'; return; }
 
-  // Группируем по пробе
   const byLab = {};
   data.forEach(r => {
     if (!byLab[r.lab_number]) byLab[r.lab_number] = { ...r, params: {} };
@@ -245,7 +240,6 @@ function renderSamplesTable() {
     </tr>`;
   }).join('');
 
-  // Expand handlers
   tbody.querySelectorAll('.expand-btn').forEach(btn => {
     btn.addEventListener('click', () => toggleDetail(btn.dataset.lab, btn));
   });
@@ -258,7 +252,6 @@ async function toggleDetail(labNum, btn) {
   row.style.display = isOpen ? 'none' : '';
   btn.classList.toggle('open', !isOpen);
   if (!isOpen && inner && !inner.innerHTML) {
-    // Load all params for this sample
     const { data } = await sb.from('v_measurements_full')
       .select('parameter,unit,raw_value,numeric_value,formula,is_less_than')
       .eq('lab_number', labNum)
@@ -277,7 +270,6 @@ async function toggleDetail(labNum, btn) {
   }
 }
 
-// Filters
 ['filter-type','filter-series','filter-protocol','filter-search'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', () => { if (G.samplesLoaded) renderSamplesTable(); });
 });
@@ -307,7 +299,6 @@ async function buildExceedances() {
 
   document.getElementById('exceed-count-badge').textContent = exceedances.length + ' нарушений';
 
-  // Severity counts
   const crit = exceedances.filter(r => r.ratio > 10).length;
   const high = exceedances.filter(r => r.ratio > 3 && r.ratio <= 10).length;
   const med  = exceedances.filter(r => r.ratio > 1 && r.ratio <= 3).length;
@@ -349,7 +340,6 @@ document.querySelectorAll('.series-btn').forEach(btn => {
 
 async function buildCharts() {
   G.chartsBuilt = true;
-
   const { data } = await sb.from('v_summary').select('*').order('lab_number');
   G.summaryAll = data || G.summary;
   renderAllCharts();
@@ -443,7 +433,6 @@ async function renderFilterChart() {
 async function buildEntryForm() {
   G.entryBuilt = true;
 
-  // Загружаем точки и параметры
   const [{ data: points }, { data: params }] = await Promise.all([
     sb.from('sampling_points').select('id,code,name').order('name'),
     sb.from('parameters').select('id,name_ru,formula,unit').order('id')
@@ -460,7 +449,7 @@ async function buildEntryForm() {
       <td style="color:var(--text-soft)">${i+1}</td>
       <td><b>${p.name_ru}</b> <span style="color:var(--text-soft);font-size:11px">${p.formula}</span></td>
       <td style="color:var(--text-soft)">${p.unit}</td>
-      <td><input type="text" id="ep-${p.formula}" placeholder="${p.formula === 'density' ? '0,98' : ''}"></td>
+      <td><input type="text" id="ep-${p.formula}" placeholder=""></td>
     </tr>`).join('');
 }
 
@@ -474,7 +463,6 @@ async function saveEntry() {
 
   if (!labNum || !pointId || !date || !protocol) { toast('Заполните все обязательные поля', 'err'); return; }
 
-  // Найдём или создадим протокол
   let { data: proto } = await sb.from('protocols').select('id').eq('number', protocol).single();
   if (!proto) {
     const series = protocol.split('/')[0];
@@ -482,13 +470,11 @@ async function saveEntry() {
     proto = newProto;
   }
 
-  // Создаём пробу
   const { data: sample, error: sErr } = await sb.from('samples')
     .insert({ lab_number: labNum, protocol_id: proto?.id, point_id: pointId, sampling_date: date, sample_type: 'Вода' })
     .select('id').single();
   if (sErr) { toast('Ошибка: ' + sErr.message, 'err'); return; }
 
-  // Вставляем измерения
   const measurements = [];
   for (const p of G.params) {
     const raw = document.getElementById('ep-' + p.formula)?.value?.trim();
@@ -505,7 +491,7 @@ async function saveEntry() {
   }
 
   toast(`✅ Сохранено: ${measurements.length} показателей для пробы ${labNum}`, 'ok');
-  G.samplesLoaded = false; // Сброс кэша
+  G.samplesLoaded = false;
 }
 
 // CSV Upload
@@ -516,7 +502,6 @@ document.getElementById('csv-upload')?.addEventListener('change', async e => {
   const lines = text.split('\n').filter(l => l.trim());
   if (!lines.length) { toast('CSV пустой', 'err'); return; }
 
-  // Определяем разделитель
   const sep = lines[0].includes(';') ? ';' : ',';
   const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
   const idx = h => headers.indexOf(h);
@@ -525,7 +510,7 @@ document.getElementById('csv-upload')?.addEventListener('change', async e => {
     const cols = line.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
     return {
       lab_number:    cols[idx('lab_number')]    || cols[idx('лаб. №')],
-      formula:       cols[idx('formula')]        || cols[idx('формула\nпоказателя')] || cols[idx('формула показателя')],
+      formula:       cols[idx('formula')]        || cols[idx('формула показателя')],
       raw_value:     cols[idx('raw_value')]      || cols[idx('значение (текст)')],
       numeric_value: cols[idx('numeric_value')]  || cols[idx('значение (число)')],
       is_less_than:  (cols[idx('is_less_than')]  || cols[idx("признак '<'")]) === 'TRUE',
@@ -536,12 +521,10 @@ document.getElementById('csv-upload')?.addEventListener('change', async e => {
   if (!rows.length) { toast('Не удалось разобрать CSV', 'err'); return; }
   toast(`Загружено ${rows.length} строк, сохраняем...`);
 
-  // Получаем параметры
   const { data: params } = await sb.from('parameters').select('id,formula');
   const paramMap = {};
   params?.forEach(p => paramMap[p.formula] = p.id);
 
-  // Группируем по лаб. номеру
   const byLab = {};
   rows.forEach(r => { if (!byLab[r.lab_number]) byLab[r.lab_number] = []; byLab[r.lab_number].push(r); });
 
@@ -590,7 +573,6 @@ function loadDemoData() {
   document.getElementById('kpi-samples').textContent = 16;
   document.getElementById('kpi-protocols').textContent = 5;
   document.getElementById('kpi-params').textContent = 49;
-
   let exceed = 0;
   G.summary.forEach(r => {
     if (r.mineralization_mg_l > 1000) exceed++;
@@ -611,7 +593,5 @@ function loadDemoData() {
 // ══════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   loadDashboard();
-
-  // Lazy-load других вкладок
   document.querySelector('[data-tab="samples"]').addEventListener('click', loadSamples);
 });
