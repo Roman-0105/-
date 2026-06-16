@@ -19,6 +19,7 @@
   <button data-tab="exceedances">⚠️ Превышения ПДК</button>
   <button data-tab="comparison">📈 Сравнение</button>
   <button data-tab="entry">➕ Ввод данных</button>
+  <button data-tab="upload">📥 Загрузка</button>
 </nav>
 
 <main>
@@ -205,13 +206,107 @@
 
   </div>
 
+  <!-- ═══════════════ ЗАГРУЗКА ═══════════════ -->
+  <div id="tab-upload" class="tab-panel">
+
+    <!-- PDF -->
+    <div class="panel">
+      <div class="panel-header">📄 Загрузка PDF-протокола через Claude AI</div>
+      <div class="panel-body">
+        <div class="upload-grid">
+          <div>
+            <div class="upload-drop-zone" id="pdf-drop-zone">
+              <div style="font-size:48px">📄</div>
+              <div style="font-size:15px;font-weight:600;margin-top:8px">Перетащите PDF сюда</div>
+              <div style="color:var(--text-soft);font-size:12px;margin-top:4px">или нажмите для выбора файла</div>
+              <label class="btn btn-outline btn-sm" style="margin-top:14px;cursor:pointer">
+                Выбрать файл
+                <input type="file" id="pdf-file-input" accept=".pdf" style="display:none">
+              </label>
+              <div id="pdf-filename" style="margin-top:8px;color:#2E75B6;font-size:13px"></div>
+            </div>
+          </div>
+          <div>
+            <div class="form-group">
+              <label>Anthropic API Key</label>
+              <input type="password" id="anthropic-api-key" placeholder="sk-ant-api03-..."
+                autocomplete="off" style="font-family:monospace;font-size:12px">
+              <div style="color:var(--text-soft);font-size:11px;margin-top:6px">
+                Получить ключ: <a href="https://console.anthropic.com/keys" target="_blank" style="color:#2E75B6">console.anthropic.com/keys</a>
+                &nbsp;·&nbsp; Стоимость: ~$0.05–0.15 за протокол
+              </div>
+            </div>
+            <div style="margin-top:20px">
+              <button class="btn btn-primary" id="btn-parse-pdf">🔍 Извлечь данные</button>
+            </div>
+            <div style="margin-top:12px;color:var(--text-soft);font-size:12px">
+              Claude AI читает PDF и автоматически извлекает все пробы,
+              точки отбора и значения показателей. После проверки — одна кнопка для сохранения в Supabase.
+            </div>
+          </div>
+        </div>
+
+        <div id="pdf-preview" style="display:none;margin-top:20px">
+          <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center">
+            <button class="btn btn-primary" id="btn-save-pdf" style="display:none">💾 Сохранить в Supabase</button>
+            <button class="btn btn-outline"
+              onclick="document.getElementById('pdf-preview').style.display='none';document.getElementById('btn-save-pdf').style.display='none'">✕ Отмена</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Excel -->
+    <div class="panel">
+      <div class="panel-header">📊 Загрузка через Excel-шаблон</div>
+      <div class="panel-body">
+        <div class="upload-grid">
+          <div>
+            <p style="color:var(--text-soft);margin-bottom:16px;line-height:1.6">
+              Скачайте шаблон, заполните данные протокола и загрузите обратно.
+              Шаблон формируется автоматически по актуальным параметрам из вашей базы данных.
+            </p>
+            <button class="btn btn-outline" id="btn-download-template">📥 Скачать шаблон .xlsx</button>
+            <div style="margin-top:12px;color:var(--text-soft);font-size:12px">
+              Шаблон содержит 5 листов: Инструкция, Протокол, Пробы,
+              Справочник точек, Параметры.
+            </div>
+          </div>
+          <div>
+            <div class="upload-drop-zone" id="excel-drop-zone">
+              <div style="font-size:48px">📊</div>
+              <div style="font-size:15px;font-weight:600;margin-top:8px">Перетащите заполненный Excel</div>
+              <div style="color:var(--text-soft);font-size:12px;margin-top:4px">или нажмите для выбора файла</div>
+              <label class="btn btn-outline btn-sm" style="margin-top:14px;cursor:pointer">
+                Выбрать файл
+                <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none">
+              </label>
+              <div id="excel-filename" style="margin-top:8px;color:#2E75B6;font-size:13px"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="excel-preview" style="display:none;margin-top:20px">
+          <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center">
+            <button class="btn btn-primary" id="btn-save-excel" style="display:none">💾 Сохранить в Supabase</button>
+            <button class="btn btn-outline"
+              onclick="document.getElementById('excel-preview').style.display='none';document.getElementById('btn-save-excel').style.display='none'">✕ Отмена</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 </main>
 
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="upload.js"></script>
 </body>
 </html>

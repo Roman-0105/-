@@ -188,14 +188,6 @@ tr:nth-child(even):hover td { background: var(--lighter); }
 .chart-card h3 { font-size: 14px; color: var(--primary); margin-bottom: 12px; font-weight: 600; }
 .chart-card canvas { max-height: 260px; }
 
-/* ── Comparison table ────────────────────────────────────── */
-.compare-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-@media(max-width:800px){ .compare-grid { grid-template-columns:1fr; } }
-
 /* ── Expandable rows ─────────────────────────────────────── */
 .expand-btn {
   background: none; border: none; cursor: pointer;
@@ -282,6 +274,47 @@ tr:nth-child(even):hover td { background: var(--lighter); }
 #toast.show { transform: translateY(0); opacity: 1; }
 #toast.ok  { background: var(--success); color: #fff; }
 #toast.err { background: var(--danger);  color: #fff; }
+
+/* ── Upload Tab ──────────────────────────────────────────── */
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media(max-width:700px){ .upload-grid { grid-template-columns: 1fr; } }
+
+.upload-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 36px 20px;
+  text-align: center;
+  transition: all .2s;
+  background: #fafcff;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--text-soft);
+  cursor: default;
+}
+.upload-drop-zone.drag-over {
+  border-color: var(--mid);
+  background: var(--lighter);
+  transform: scale(1.01);
+}
+
+.preview-meta {
+  padding: 10px 16px;
+  background: var(--grey);
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--mid);
+}
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media(max-width:600px){
