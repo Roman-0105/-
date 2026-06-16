@@ -1,8 +1,9 @@
-
 'use strict';
 
 let parsedProtocol = null;
 let excelProtocol = null;
+
+const ANTHROPIC_PROXY = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -70,13 +71,12 @@ async function parsePdf() {
 
     const prompt = `Ты — парсер химических протоколов анализа воды. Извлеки все данные из предоставленного PDF-документа и верни ТОЛЬКО валидный JSON без каких-либо пояснений, без markdown-обёртки.\n\nСтруктура JSON:\n{\n  "protocol_number": "334/4",\n  "series": "334",\n  "sampling_date_from": "2024-06-10",\n  "sampling_date_to": "2024-06-12",\n  "issued_at": "2024-06-20",\n  "samples": [\n    {\n      "lab_number": 726,\n      "client_number": 1,\n      "point_name": "До фильтра",\n      "point_type": "фильтр",\n      "sampling_date": "2024-06-10",\n      "measurements": [\n        { "formula": "pH_lab", "raw_value": "7.7", "numeric_value": 7.7, "is_less_than": false },\n        { "formula": "TDS", "raw_value": "<0.01", "numeric_value": 0.01, "is_less_than": true }\n      ]\n    }\n  ]\n}\n\nПравила:\n- Все даты в формате YYYY-MM-DD\n- lab_number и client_number — числа\n- Для значения "<0.01": numeric_value=0.01, is_less_than=true\n- raw_value — строка как в документе\n- Используй только коды формул: ${formulaList}\n- series — часть номера протокола до "/", верни ТОЛЬКО JSON`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(ANTHROPIC_PROXY, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-allow-browser': 'true'
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
