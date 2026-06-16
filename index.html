@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Химический анализ воды — RG Gold</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">💧 <span>RG Gold /</span> Химический анализ воды</div>
+  <div id="connection-status">⏳ Подключение...</div>
+</header>
+
+<nav>
+  <button class="active" data-tab="dashboard">📊 Дашборд</button>
+  <button data-tab="samples">🧪 Пробы</button>
+  <button data-tab="exceedances">⚠️ Превышения ПДК</button>
+  <button data-tab="comparison">📈 Сравнение</button>
+  <button data-tab="entry">➕ Ввод данных</button>
+</nav>
+
+<main>
+
+  <!-- ═══════════════ ДАШБОРД ═══════════════ -->
+  <div id="tab-dashboard" class="tab-panel active">
+
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="label">Всего проб</div><div class="value" id="kpi-samples">—</div><div class="sub">из 5 протоколов</div></div>
+      <div class="kpi-card"><div class="label">Протоколов</div><div class="value" id="kpi-protocols">—</div><div class="sub">серии 334 и 354</div></div>
+      <div class="kpi-card"><div class="label">Параметров</div><div class="value" id="kpi-params">—</div><div class="sub">по каждой пробе</div></div>
+      <div class="kpi-card danger"><div class="label">Превышений ПДК</div><div class="value" id="kpi-exceed">—</div><div class="sub">питьевая вода</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Сводная таблица проб <span class="badge" id="summary-count"></span></div>
+      <div class="table-wrap">
+        <table id="summary-table">
+          <thead>
+            <tr>
+              <th>Лаб.№</th><th>Точка отбора</th><th>Тип</th>
+              <th>pH</th><th>Минерализация мг/дм³</th>
+              <th>Жёсткость мг-экв/дм³</th><th>Хлориды мг/дм³</th>
+              <th>Сульфаты мг/дм³</th><th>Fe общ. мг/дм³</th>
+              <th>Нитраты мг/дм³</th><th>Статус ПДК</th>
+            </tr>
+          </thead>
+          <tbody id="summary-tbody"><tr><td colspan="11" class="loading"></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Сравнение серий 334 vs 354</div>
+      <div class="panel-body">
+        <canvas id="chart-series" height="80"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════ ПРОБЫ ═══════════════ -->
+  <div id="tab-samples" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header">Реестр проб</div>
+      <div class="filters">
+        <div><label>Тип точки:</label>
+          <select id="filter-type">
+            <option value="">Все</option>
+            <option>скважина</option><option>зумпф</option>
+            <option>фильтр</option><option>водокачка</option><option>водонаброс</option>
+          </select>
+        </div>
+        <div><label>Серия:</label>
+          <select id="filter-series">
+            <option value="">Все</option>
+            <option>334</option><option>354</option>
+          </select>
+        </div>
+        <div><label>Протокол:</label>
+          <select id="filter-protocol">
+            <option value="">Все</option>
+            <option>334/4</option><option>334/5</option><option>334/6</option>
+            <option>354/1</option><option>354/5</option>
+          </select>
+        </div>
+        <div><label>Поиск:</label>
+          <input id="filter-search" placeholder="Название точки..." style="width:200px">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th><th>Лаб.№</th><th>Протокол</th><th>Точка отбора</th>
+              <th>Тип</th><th>Дата</th><th>pH</th>
+              <th>Минерализация</th><th>Жёсткость</th><th>Fe общ.</th>
+            </tr>
+          </thead>
+          <tbody id="samples-tbody"><tr><td colspan="10" class="loading"></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ ПРЕВЫШЕНИЯ ПДК ═══════════════ -->
+  <div id="tab-exceedances" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header">Превышения ПДК питьевой воды <span class="badge" id="exceed-count-badge"></span></div>
+      <div class="panel-body" style="padding-bottom:0">
+        <div class="severity-bar" id="severity-bar"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Точка отбора</th><th>Тип</th><th>Лаб.№</th>
+              <th>Показатель</th><th>Факт</th><th>ПДК</th>
+              <th>Кратность ↓</th><th>Критичность</th>
+            </tr>
+          </thead>
+          <tbody id="exceed-tbody"><tr><td colspan="8" class="loading"></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ СРАВНЕНИЕ ═══════════════ -->
+  <div id="tab-comparison" class="tab-panel">
+
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <strong>Показать серию:</strong>
+      <button class="btn btn-outline btn-sm series-btn active" data-series="">Все</button>
+      <button class="btn btn-outline btn-sm series-btn" data-series="334">334 (июнь)</button>
+      <button class="btn btn-outline btn-sm series-btn" data-series="354">354 (июнь)</button>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Минерализация, мг/дм³ (ПДК: 1000)</h3><canvas id="ch-tds"></canvas></div>
+      <div class="chart-card"><h3>Хлориды Cl⁻, мг/дм³ (ПДК: 350)</h3><canvas id="ch-cl"></canvas></div>
+      <div class="chart-card"><h3>Железо общее, мг/дм³ (ПДК: 0.3)</h3><canvas id="ch-fe"></canvas></div>
+      <div class="chart-card"><h3>Жёсткость, мг-экв/дм³ (ПДК: 7.0)</h3><canvas id="ch-th"></canvas></div>
+      <div class="chart-card"><h3>Нитраты NO₃⁻, мг/дм³ (ПДК: 45)</h3><canvas id="ch-no3"></canvas></div>
+      <div class="chart-card"><h3>Сульфаты SO₄²⁻, мг/дм³ (ПДК: 500)</h3><canvas id="ch-so4"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">До / После фильтра (лаб. 726 vs 727)</div>
+      <div class="panel-body">
+        <canvas id="ch-filter" height="80"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════ ВВОД ДАННЫХ ═══════════════ -->
+  <div id="tab-entry" class="tab-panel">
+
+    <div class="panel">
+      <div class="panel-header">Добавить результаты нового протокола</div>
+      <div class="panel-body">
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>№ Протокола</label>
+            <input id="entry-protocol" placeholder="Например: 355/1">
+          </div>
+          <div class="form-group">
+            <label>Лабораторный номер пробы</label>
+            <input id="entry-lab" type="number" placeholder="800">
+          </div>
+          <div class="form-group">
+            <label>Точка отбора</label>
+            <select id="entry-point"><option value="">— выберите —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Дата отбора</label>
+            <input id="entry-date" type="date">
+          </div>
+        </div>
+
+        <div class="panel-header" style="margin-bottom:1px;border-radius:4px 4px 0 0">Значения показателей</div>
+        <div class="table-wrap" style="border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px">
+          <table class="param-entry-table">
+            <thead>
+              <tr><th style="width:50px">№</th><th>Показатель</th><th style="width:100px">Ед. изм.</th><th style="width:160px">Значение</th></tr>
+            </thead>
+            <tbody id="entry-params"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary" id="btn-save-entry">💾 Сохранить в Supabase</button>
+          <span style="color:var(--text-soft);font-size:12px">или</span>
+          <label class="btn btn-outline" style="cursor:pointer">
+            📂 Загрузить CSV
+            <input type="file" id="csv-upload" accept=".csv" style="display:none">
+          </label>
+          <span style="color:var(--text-soft);font-size:12px">Формат: лист «Загрузка данных (CSV)» из Excel-шаблона</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
