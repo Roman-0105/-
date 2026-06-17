@@ -184,16 +184,26 @@ async function loadSamples() {
   const tbody = document.getElementById('samples-tbody');
   tbody.innerHTML = '<tr><td colspan="10" class="loading"></td></tr>';
 
-  const { data, error } = await sb.from('v_measurements_full')
-    .select('lab_number,protocol,series,point_name,point_type,location,sampling_date,formula,numeric_value,raw_value,is_less_than')
-    .order('lab_number');
+  const { data, error } = await sb.from('v_summary').select('*').order('lab_number');
 
   if (error || !data) { tbody.innerHTML = '<tr><td colspan="10" class="empty">Ошибка загрузки</td></tr>'; return; }
 
   const byLab = {};
   data.forEach(r => {
-    if (!byLab[r.lab_number]) byLab[r.lab_number] = { ...r, params: {} };
-    byLab[r.lab_number].params[r.formula] = { raw: r.raw_value, val: r.numeric_value, lt: r.is_less_than };
+    byLab[r.lab_number] = {
+      lab_number:    r.lab_number,
+      protocol:      r.protocol,
+      series:        r.series,
+      point_name:    r.point_name,
+      point_type:    r.point_type,
+      sampling_date: r.sampling_date,
+      params: {
+        'pH_lab':   { raw: r.ph_lab,              val: r.ph_lab,              lt: false },
+        'TDS':      { raw: r.mineralization_mg_l, val: r.mineralization_mg_l, lt: false },
+        'TH':       { raw: r.hardness_meq_l,      val: r.hardness_meq_l,      lt: false },
+        'Fe_total': { raw: r.fe_total_mg_l,       val: r.fe_total_mg_l,       lt: false },
+      }
+    };
   });
   G.samplesData = byLab;
   G.samplesLoaded = true;
