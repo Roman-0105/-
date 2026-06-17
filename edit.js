@@ -120,32 +120,46 @@ function confirmDeleteProtocol(id, number) {
 //  РЕДАКТИРОВАНИЕ ИЗМЕРЕНИЙ В ДЕТАЛИ ПРОБЫ
 // ══════════════════════════════════════════════════════════
 
-const CATEGORY_ORDER = [1, 2, 3, 4, 5, 6];
-const CATEGORY_NAMES = {
-  1: 'Органолептические',
-  2: 'Физико-химические',
-  3: 'Анионы',
-  4: 'Катионы',
-  5: 'Металлы',
-  6: 'Прочие'
+// Map category (id or name) → canonical display name
+const CAT_ICON = {
+  'Органолептические': '👁️',
+  'Физико-химические': '⚗️',
+  'Анионы':            '⬇️',
+  'Катионы':           '⬆️',
+  'Металлы':           '🔩',
+  'Прочие':            '📋'
 };
-const CATEGORY_ICONS = {
-  1: '👁️', 2: '⚗️', 3: '⬇️', 4: '⬆️', 5: '🔩', 6: '📋'
+// Numeric id → name fallback (for DBs that store id instead of name)
+const CAT_ID_NAME = {
+  1: 'Органолептические', 2: 'Физико-химические',
+  3: 'Анионы', 4: 'Катионы', 5: 'Металлы', 6: 'Прочие'
 };
+const CAT_ORDER = [
+  'Органолептические','Физико-химические',
+  'Анионы','Катионы','Металлы','Прочие'
+];
+
+function resolveCatName(cat) {
+  if (!cat && cat !== 0) return 'Прочие';
+  if (typeof cat === 'number' || /^\d+$/.test(cat)) return CAT_ID_NAME[+cat] || 'Прочие';
+  return String(cat);
+}
 
 function groupByCategory(data) {
   const groups = {};
   for (const r of data) {
-    const cat = r.category ?? 6;
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(r);
+    const key = resolveCatName(r.category);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
   }
   return groups;
 }
 
 function renderDetailView(inner, labNum, data) {
   const groups = groupByCategory(data);
-  const groupsHtml = CATEGORY_ORDER
+  // Include any category not in CAT_ORDER at the end
+  const allCats = [...CAT_ORDER, ...Object.keys(groups).filter(k => !CAT_ORDER.includes(k))];
+  const groupsHtml = allCats
     .filter(cat => groups[cat]?.length)
     .map(cat => {
       const rows = groups[cat].map(r => {
@@ -159,8 +173,8 @@ function renderDetailView(inner, labNum, data) {
       }).join('');
       return `<div class="param-group">
         <div class="param-group-header">
-          <span class="param-group-icon">${CATEGORY_ICONS[cat]}</span>
-          ${CATEGORY_NAMES[cat]}
+          <span class="param-group-icon">${CAT_ICON[cat] || '📋'}</span>
+          ${cat}
           <span class="param-group-count">${groups[cat].length}</span>
         </div>
         <div class="detail-params">${rows}</div>
@@ -171,7 +185,7 @@ function renderDetailView(inner, labNum, data) {
     <div class="detail-toolbar">
       <button class="btn btn-sm btn-outline" onclick="enterEditMode(${labNum})">✏️ Редактировать</button>
     </div>
-    ${groupsHtml}`;
+    ${groupsHtml || '<div class="empty">Нет данных</div>'}`;
 }
 
 async function enterEditMode(labNum) {
@@ -186,7 +200,8 @@ async function enterEditMode(labNum) {
   if (!data) { inner.innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
 
   const groups = groupByCategory(data);
-  const groupsHtml = CATEGORY_ORDER
+  const allCats = [...CAT_ORDER, ...Object.keys(groups).filter(k => !CAT_ORDER.includes(k))];
+  const groupsHtml = allCats
     .filter(cat => groups[cat]?.length)
     .map(cat => {
       const rows = groups[cat].map(r => {
@@ -202,8 +217,8 @@ async function enterEditMode(labNum) {
       }).join('');
       return `<div class="param-group">
         <div class="param-group-header">
-          <span class="param-group-icon">${CATEGORY_ICONS[cat]}</span>
-          ${CATEGORY_NAMES[cat]}
+          <span class="param-group-icon">${CAT_ICON[cat] || '📋'}</span>
+          ${cat}
           <span class="param-group-count">${groups[cat].length}</span>
         </div>
         <div class="edit-params-grid">${rows}</div>
