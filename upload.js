@@ -3,8 +3,13 @@
 let parsedProtocol = null;
 let excelProtocol = null;
 
-const ANTHROPIC_PROXY = 'https://anthropic-proxy.romanyukin01.workers.dev/';
-const API_KEY_STORAGE = 'rg_anthropic_api_key';
+const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
+const API_KEY_STORAGE    = 'rg_anthropic_api_key';
+const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
+const GEMINI_MODEL       = 'gemini-1.5-flash';
+const GEMINI_URL         = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+let currentProvider = 'gemini';
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -46,69 +51,108 @@ function setupDropZone(zoneId, inputId, onFile) {
   input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); });
 }
 
+function buildPrompt() {
+  const formulaList = [
+    'smell', 'taste', 'color', 'turbidity', 'clarity',
+    'pH_lab', 'pH_field', 'density',
+    'TDS', 'TH', 'alkalinity', 'dry_residue',
+    'NO3-', 'NO2-', 'SO4', 'Cl-', 'HCO3-', 'CO3', 'F-', 'PO4', 'Br',
+    'Na+', 'K+', 'Ca2+', 'Mg2+', 'NH4+', 'NH3_NH4',
+    'Fe_total', 'Fe2+', 'Fe3+', 'Mn', 'Cu', 'Ni', 'Al', 'Ba', 'Be',
+    'B', 'Cd', 'As', 'Hg', 'Pb', 'Se', 'Sr', 'Cr', 'Zn',
+    'Si', 'Mo', 'CN-', 'OilProd', 'APAV', 'phenols', 'COD', 'BOD5'
+  ].join(', ');
+
+  return `Ты — парсер химических протоколов анализа воды. Извлеки все данные из предоставленного PDF-документа и верни ТОЛЬКО валидный JSON без каких-либо пояснений, без markdown-обёртки.\n\nСтруктура JSON:\n{\n  "protocol_number": "334/4",\n  "series": "334",\n  "sampling_date_from": "2024-06-10",\n  "sampling_date_to": "2024-06-12",\n  "issued_at": "2024-06-20",\n  "samples": [\n    {\n      "lab_number": 726,\n      "client_number": 1,\n      "point_name": "До фильтра",\n      "point_type": "фильтр",\n      "sampling_date": "2024-06-10",\n      "measurements": [\n        { "formula": "pH_lab", "raw_value": "7.7", "numeric_value": 7.7, "is_less_than": false },\n        { "formula": "TDS", "raw_value": "<0.01", "numeric_value": 0.01, "is_less_than": true }\n      ]\n    }\n  ]\n}\n\nПравила:\n- Все даты в формате YYYY-MM-DD\n- lab_number и client_number — числа\n- Для значения "<0.01": numeric_value=0.01, is_less_than=true\n- raw_value — строка как в документе\n- Используй только коды формул: ${formulaList}\n- series — часть номера протокола до "/", верни ТОЛЬКО JSON`;
+}
+
+function cleanJson(text) {
+  return text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+}
+
+async function callAnthropicApi(base64, apiKey) {
+  const response = await fetch(ANTHROPIC_PROXY, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-8',
+      max_tokens: 32000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: buildPrompt() }
+        ]
+      }]
+    })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return cleanJson(data.content?.[0]?.text || '');
+}
+
+async function callGeminiApi(base64, apiKey) {
+  const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'application/pdf', data: base64 } },
+          { text: buildPrompt() }
+        ]
+      }],
+      generationConfig: { maxOutputTokens: 32000, temperature: 0 }
+    })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error('Gemini не вернул текст. Возможно, PDF слишком большой или ключ недействителен.');
+  return cleanJson(text);
+}
+
 async function parsePdf() {
   const input = document.getElementById('pdf-file-input');
-  const keyInput = document.getElementById('anthropic-api-key');
-  const file = input && input.files[0];
-
+  const file  = input && input.files[0];
   if (!file) { toast('Выберите PDF файл', 'err'); return; }
-
-  const apiKey = (keyInput && keyInput.value.trim()) ||
-    localStorage.getItem(API_KEY_STORAGE) ||
-    (typeof ANTHROPIC_API_KEY !== 'undefined' ? ANTHROPIC_API_KEY : '');
-  if (!apiKey) { toast('Введите Anthropic API ключ', 'err'); return; }
-  localStorage.setItem(API_KEY_STORAGE, apiKey);
-  if (keyInput && !keyInput.value.trim()) keyInput.value = apiKey;
 
   const btn = document.getElementById('btn-parse-pdf');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Анализ PDF...'; }
 
   try {
     const base64 = await fileToBase64(file);
+    let jsonText;
 
-    const formulaList = [
-      'smell', 'taste', 'color', 'turbidity', 'clarity',
-      'pH_lab', 'pH_field', 'density',
-      'TDS', 'TH', 'alkalinity', 'dry_residue',
-      'NO3-', 'NO2-', 'SO4', 'Cl-', 'HCO3-', 'CO3', 'F-', 'PO4', 'Br',
-      'Na+', 'K+', 'Ca2+', 'Mg2+', 'NH4+', 'NH3_NH4',
-      'Fe_total', 'Fe2+', 'Fe3+', 'Mn', 'Cu', 'Ni', 'Al', 'Ba', 'Be',
-      'B', 'Cd', 'As', 'Hg', 'Pb', 'Se', 'Sr', 'Cr', 'Zn',
-      'Si', 'Mo', 'CN-', 'OilProd', 'APAV', 'phenols', 'COD', 'BOD5'
-    ].join(', ');
-
-    const prompt = `Ты — парсер химических протоколов анализа воды. Извлеки все данные из предоставленного PDF-документа и верни ТОЛЬКО валидный JSON без каких-либо пояснений, без markdown-обёртки.\n\nСтруктура JSON:\n{\n  "protocol_number": "334/4",\n  "series": "334",\n  "sampling_date_from": "2024-06-10",\n  "sampling_date_to": "2024-06-12",\n  "issued_at": "2024-06-20",\n  "samples": [\n    {\n      "lab_number": 726,\n      "client_number": 1,\n      "point_name": "До фильтра",\n      "point_type": "фильтр",\n      "sampling_date": "2024-06-10",\n      "measurements": [\n        { "formula": "pH_lab", "raw_value": "7.7", "numeric_value": 7.7, "is_less_than": false },\n        { "formula": "TDS", "raw_value": "<0.01", "numeric_value": 0.01, "is_less_than": true }\n      ]\n    }\n  ]\n}\n\nПравила:\n- Все даты в формате YYYY-MM-DD\n- lab_number и client_number — числа\n- Для значения "<0.01": numeric_value=0.01, is_less_than=true\n- raw_value — строка как в документе\n- Используй только коды формул: ${formulaList}\n- series — часть номера протокола до "/", верни ТОЛЬКО JSON`;
-
-    const response = await fetch(ANTHROPIC_PROXY, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 32000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || `HTTP ${response.status}`);
+    if (currentProvider === 'gemini') {
+      const keyInput = document.getElementById('gemini-api-key');
+      const apiKey = (keyInput?.value.trim()) || localStorage.getItem(GEMINI_KEY_STORAGE) || '';
+      if (!apiKey) { toast('Введите Google Gemini API ключ', 'err'); return; }
+      localStorage.setItem(GEMINI_KEY_STORAGE, apiKey);
+      if (keyInput && !keyInput.value.trim()) keyInput.value = apiKey;
+      jsonText = await callGeminiApi(base64, apiKey);
+    } else {
+      const keyInput = document.getElementById('anthropic-api-key');
+      const apiKey = (keyInput?.value.trim()) ||
+        localStorage.getItem(API_KEY_STORAGE) ||
+        (typeof ANTHROPIC_API_KEY !== 'undefined' ? ANTHROPIC_API_KEY : '');
+      if (!apiKey) { toast('Введите Anthropic API ключ', 'err'); return; }
+      localStorage.setItem(API_KEY_STORAGE, apiKey);
+      if (keyInput && !keyInput.value.trim()) keyInput.value = apiKey;
+      jsonText = await callAnthropicApi(base64, apiKey);
     }
 
-    const data = await response.json();
-    let text = data.content?.[0]?.text || '';
-    text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-
-    parsedProtocol = JSON.parse(text);
+    parsedProtocol = JSON.parse(jsonText);
     renderPdfPreview(parsedProtocol);
     toast(`✅ Извлечено ${parsedProtocol.samples?.length} проб`, 'ok');
   } catch (e) {
@@ -478,12 +522,30 @@ async function saveExcelData() {
 
 async function initUploadTab() {
   if (G.uploadBuilt) return;
-  const savedKey = localStorage.getItem(API_KEY_STORAGE);
-  if (savedKey) {
-    const keyInput = document.getElementById('anthropic-api-key');
-    if (keyInput) keyInput.value = savedKey;
-  }
   G.uploadBuilt = true;
+
+  // Restore saved keys
+  const savedAnthropic = localStorage.getItem(API_KEY_STORAGE);
+  if (savedAnthropic) {
+    const k = document.getElementById('anthropic-api-key');
+    if (k) k.value = savedAnthropic;
+  }
+  const savedGemini = localStorage.getItem(GEMINI_KEY_STORAGE);
+  if (savedGemini) {
+    const k = document.getElementById('gemini-api-key');
+    if (k) k.value = savedGemini;
+  }
+
+  // Provider tab switching
+  document.querySelectorAll('.provider-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentProvider = tab.dataset.provider;
+      document.getElementById('key-block-gemini').style.display    = currentProvider === 'gemini'    ? '' : 'none';
+      document.getElementById('key-block-anthropic').style.display = currentProvider === 'anthropic' ? '' : 'none';
+    });
+  });
 
   if (!G.points?.length) {
     const { data } = await sb.from('sampling_points').select('*').order('name');
