@@ -196,8 +196,28 @@ tr:nth-child(even):hover td { background: var(--lighter); }
 }
 .expand-btn.open { transform: rotate(90deg); }
 .detail-row td { background: var(--lighter) !important; }
-.detail-inner { display: flex; flex-direction: column; padding: 8px 0; gap: 8px; }
-.detail-toolbar { display: flex; gap: 8px; padding-bottom: 4px; }
+.detail-inner { display: flex; flex-direction: column; padding: 8px 0; gap: 0; }
+.detail-toolbar { display: flex; gap: 8px; padding-bottom: 10px; }
+
+/* ── Parameter groups ────────────────────────────────────── */
+.param-group { margin-bottom: 6px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.param-group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: var(--primary); color: #fff;
+  font-size: 12px; font-weight: 600; letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.param-group-header .param-group-icon { font-size: 14px; }
+.param-group-count {
+  margin-left: auto;
+  background: rgba(255,255,255,.22);
+  border-radius: 10px; padding: 1px 7px;
+  font-size: 11px; font-weight: 500;
+}
+.param-group .detail-params,
+.param-group .edit-params-grid { border-radius: 0; padding: 8px; }
+
 .detail-params {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

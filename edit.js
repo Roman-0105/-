@@ -119,13 +119,36 @@ function confirmDeleteProtocol(id, number) {
 // ══════════════════════════════════════════════════════════
 //  РЕДАКТИРОВАНИЕ ИЗМЕРЕНИЙ В ДЕТАЛИ ПРОБЫ
 // ══════════════════════════════════════════════════════════
+
+const CATEGORY_ORDER = [1, 2, 3, 4, 5, 6];
+const CATEGORY_NAMES = {
+  1: 'Органолептические',
+  2: 'Физико-химические',
+  3: 'Анионы',
+  4: 'Катионы',
+  5: 'Металлы',
+  6: 'Прочие'
+};
+const CATEGORY_ICONS = {
+  1: '👁️', 2: '⚗️', 3: '⬇️', 4: '⬆️', 5: '🔩', 6: '📋'
+};
+
+function groupByCategory(data) {
+  const groups = {};
+  for (const r of data) {
+    const cat = r.category ?? 6;
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(r);
+  }
+  return groups;
+}
+
 function renderDetailView(inner, labNum, data) {
-  inner.innerHTML = `
-    <div class="detail-toolbar">
-      <button class="btn btn-sm btn-outline" onclick="enterEditMode(${labNum})">✏️ Редактировать</button>
-    </div>
-    <div class="detail-params">
-      ${data.map(r => {
+  const groups = groupByCategory(data);
+  const groupsHtml = CATEGORY_ORDER
+    .filter(cat => groups[cat]?.length)
+    .map(cat => {
+      const rows = groups[cat].map(r => {
         const ratio = pdkRatio(r.formula, r.numeric_value);
         const cls   = ratio && ratio > 1 ? 'exceed' : '';
         const val   = r.is_less_than ? `&lt;${(r.raw_value || '').replace('<', '')}` : (r.raw_value ?? '—');
@@ -133,8 +156,22 @@ function renderDetailView(inner, labNum, data) {
           <span class="pname">${r.parameter} <span class="unit-tag">${r.unit}</span></span>
           <span class="pval">${val}${ratio && ratio > 1 ? ` ⚠ ×${ratio.toFixed(1)}` : ''}</span>
         </div>`;
-      }).join('')}
-    </div>`;
+      }).join('');
+      return `<div class="param-group">
+        <div class="param-group-header">
+          <span class="param-group-icon">${CATEGORY_ICONS[cat]}</span>
+          ${CATEGORY_NAMES[cat]}
+          <span class="param-group-count">${groups[cat].length}</span>
+        </div>
+        <div class="detail-params">${rows}</div>
+      </div>`;
+    }).join('');
+
+  inner.innerHTML = `
+    <div class="detail-toolbar">
+      <button class="btn btn-sm btn-outline" onclick="enterEditMode(${labNum})">✏️ Редактировать</button>
+    </div>
+    ${groupsHtml}`;
 }
 
 async function enterEditMode(labNum) {
@@ -143,18 +180,16 @@ async function enterEditMode(labNum) {
   inner.innerHTML = '<div class="loading"></div>';
 
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
     .eq('lab_number', labNum).order('category');
 
   if (!data) { inner.innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
 
-  inner.innerHTML = `
-    <div class="detail-toolbar">
-      <button class="btn btn-sm btn-primary" onclick="saveEditMode(${labNum})">💾 Сохранить изменения</button>
-      <button class="btn btn-sm btn-outline" onclick="cancelEditMode(${labNum})">✕ Отмена</button>
-    </div>
-    <div class="edit-params-grid">
-      ${data.map(r => {
+  const groups = groupByCategory(data);
+  const groupsHtml = CATEGORY_ORDER
+    .filter(cat => groups[cat]?.length)
+    .map(cat => {
+      const rows = groups[cat].map(r => {
         const val   = r.is_less_than ? `<${r.numeric_value ?? ''}` : (r.raw_value ?? '');
         const ratio = pdkRatio(r.formula, r.numeric_value);
         const cls   = ratio && ratio > 1 ? 'exceed' : '';
@@ -164,8 +199,23 @@ async function enterEditMode(labNum) {
             data-formula="${r.formula}"
             value="${val}" placeholder="—">
         </div>`;
-      }).join('')}
-    </div>`;
+      }).join('');
+      return `<div class="param-group">
+        <div class="param-group-header">
+          <span class="param-group-icon">${CATEGORY_ICONS[cat]}</span>
+          ${CATEGORY_NAMES[cat]}
+          <span class="param-group-count">${groups[cat].length}</span>
+        </div>
+        <div class="edit-params-grid">${rows}</div>
+      </div>`;
+    }).join('');
+
+  inner.innerHTML = `
+    <div class="detail-toolbar">
+      <button class="btn btn-sm btn-primary" onclick="saveEditMode(${labNum})">💾 Сохранить изменения</button>
+      <button class="btn btn-sm btn-outline" onclick="cancelEditMode(${labNum})">✕ Отмена</button>
+    </div>
+    ${groupsHtml}`;
   inner.dataset.editing = 'true';
 }
 
@@ -174,7 +224,7 @@ async function cancelEditMode(labNum) {
   if (!inner) return;
   inner.innerHTML = '<div class="loading"></div>';
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
     .eq('lab_number', labNum).order('category');
   if (data) renderDetailView(inner, labNum, data);
 }
@@ -220,7 +270,7 @@ async function saveEditMode(labNum) {
   inner.dataset.editing = 'false';
   inner.innerHTML = '<div class="loading"></div>';
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
     .eq('lab_number', labNum).order('category');
   if (data) renderDetailView(inner, labNum, data);
 }
