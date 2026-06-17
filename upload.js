@@ -200,9 +200,14 @@ async function upsertProtocol(protocol) {
   return data.id;
 }
 
-async function saveProtocolData(protocol) {
+async function saveProtocolData(protocol, onProgress) {
   if (!G.params) G.params = [];
+  const total = protocol.samples.length;
+  let done = 0;
+
   const protocolId = await upsertProtocol(protocol);
+  onProgress?.(5, `Протокол создан, сохраняю пробы (0/${total})...`);
+
   let savedSamples = 0, savedMeasurements = 0;
 
   for (const s of protocol.samples) {
@@ -240,22 +245,43 @@ async function saveProtocolData(protocol) {
       }, { onConflict: 'sample_id,parameter_id' });
       if (!error) savedMeasurements++;
     }
+
+    done++;
+    const pct = 5 + Math.round((done / total) * 90);
+    onProgress?.(pct, `Сохранено проб: ${done}/${total}...`);
   }
   return { savedSamples, savedMeasurements };
+}
+
+function setProgress(progressId, labelId, pct, label) {
+  const bar = document.getElementById(progressId);
+  const lbl = document.getElementById(labelId);
+  const wrap = bar?.parentElement?.parentElement;
+  if (!wrap) return;
+  wrap.style.display = pct === null ? 'none' : 'block';
+  if (bar) bar.style.width = (pct ?? 0) + '%';
+  if (lbl) lbl.textContent = label || '';
 }
 
 async function saveParsedProtocol() {
   if (!parsedProtocol) { toast('Нет данных для сохранения', 'err'); return; }
   const btn = document.getElementById('btn-save-pdf');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Сохранение...'; }
+  if (btn) btn.disabled = true;
+  setProgress('pdf-progress-bar', 'pdf-progress-label', 0, 'Создание протокола...');
   try {
-    const { savedSamples, savedMeasurements } = await saveProtocolData(parsedProtocol);
+    const { savedSamples, savedMeasurements } = await saveProtocolData(
+      parsedProtocol,
+      (pct, label) => setProgress('pdf-progress-bar', 'pdf-progress-label', pct, label)
+    );
+    setProgress('pdf-progress-bar', 'pdf-progress-label', 100, '✅ Готово!');
+    setTimeout(() => setProgress('pdf-progress-bar', 'pdf-progress-label', null), 1500);
     toast(`✅ Сохранено: ${savedSamples} проб, ${savedMeasurements} измерений`, 'ok');
     G.samplesLoaded = false;
     parsedProtocol = null;
     document.getElementById('pdf-preview').style.display = 'none';
     document.getElementById('pdf-preview-actions').style.display = 'none';
   } catch (e) {
+    setProgress('pdf-progress-bar', 'pdf-progress-label', null);
     toast('Ошибка сохранения: ' + e.message, 'err');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '💾 Сохранить в Supabase'; }
