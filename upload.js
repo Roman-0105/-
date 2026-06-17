@@ -158,8 +158,8 @@ function renderPdfPreview(protocol) {
   container.innerHTML = html;
   container.style.display = 'block';
 
-  const saveBtn = document.getElementById('btn-save-pdf');
-  if (saveBtn) saveBtn.style.display = 'inline-flex';
+  const actions = document.getElementById('pdf-preview-actions');
+  if (actions) actions.style.display = 'flex';
 }
 
 async function resolveOrCreatePoint(pointName, pointType) {
@@ -254,7 +254,7 @@ async function saveParsedProtocol() {
     G.samplesLoaded = false;
     parsedProtocol = null;
     document.getElementById('pdf-preview').style.display = 'none';
-    document.getElementById('btn-save-pdf').style.display = 'none';
+    document.getElementById('pdf-preview-actions').style.display = 'none';
   } catch (e) {
     toast('Ошибка сохранения: ' + e.message, 'err');
   } finally {

@@ -246,12 +246,11 @@
           </div>
         </div>
 
-        <div id="pdf-preview" style="display:none;margin-top:20px">
-          <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center">
-            <button class="btn btn-primary" id="btn-save-pdf" style="display:none">💾 Сохранить в Supabase</button>
-            <button class="btn btn-outline"
-              onclick="document.getElementById('pdf-preview').style.display='none';document.getElementById('btn-save-pdf').style.display='none'">✕ Отмена</button>
-          </div>
+        <div id="pdf-preview" style="display:none;margin-top:20px"></div>
+        <div id="pdf-preview-actions" style="display:none;margin-top:10px;display:none;gap:10px;align-items:center">
+          <button class="btn btn-primary" id="btn-save-pdf">💾 Сохранить в Supabase</button>
+          <button class="btn btn-outline"
+            onclick="document.getElementById('pdf-preview').style.display='none';document.getElementById('pdf-preview-actions').style.display='none'">✕ Отмена</button>
         </div>
       </div>
     </div>
