@@ -28,7 +28,8 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.tab === 'comparison' && !G.chartsBuilt) buildCharts();
     if (btn.dataset.tab === 'exceedances' && !G.exceedBuilt) buildExceedances();
     if (btn.dataset.tab === 'entry' && !G.entryBuilt) buildEntryForm();
-    if (btn.dataset.tab === 'upload' && !G.uploadBuilt) initUploadTab();
+    if (btn.dataset.tab === 'upload'   && !G.uploadBuilt)   initUploadTab();
+    if (btn.dataset.tab === 'analysis' && !G.analysisBuilt) initAnalysisTab();
   });
 });
 
@@ -252,21 +253,11 @@ async function toggleDetail(labNum, btn) {
   row.style.display = isOpen ? 'none' : '';
   btn.classList.toggle('open', !isOpen);
   if (!isOpen && inner && !inner.innerHTML) {
+    inner.innerHTML = '<div class="loading"></div>';
     const { data } = await sb.from('v_measurements_full')
-      .select('parameter,unit,raw_value,numeric_value,formula,is_less_than')
-      .eq('lab_number', labNum)
-      .order('category');
-    if (data) {
-      inner.innerHTML = data.map(r => {
-        const ratio = pdkRatio(r.formula, r.numeric_value);
-        const cls = (ratio && ratio > 1) ? 'exceed' : '';
-        const val = r.is_less_than ? `<${r.raw_value?.replace('<','')}` : (r.raw_value ?? '—');
-        return `<div class="detail-param ${cls}">
-          <span class="pname">${r.parameter} (${r.unit})</span>
-          <span class="pval">${val}${ratio && ratio > 1 ? ` ⚠×${ratio.toFixed(1)}` : ''}</span>
-        </div>`;
-      }).join('');
-    }
+      .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, parameter_id')
+      .eq('lab_number', labNum).order('category');
+    if (data) renderDetailView(inner, labNum, data);
   }
 }
 
