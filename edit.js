@@ -316,6 +316,17 @@ async function saveEditMode(labNum) {
   if (error) { toast('Ошибка: ' + error.message, 'err'); return; }
 
   toast('✅ Измерения сохранены', 'ok');
+
+  // Update in-memory cache with new date so filters refresh immediately
+  if (newDate && G.samplesData?.[labNum]) {
+    G.samplesData[labNum].sampling_date = newDate;
+    if (typeof populateSampleFilters === 'function') populateSampleFilters();
+    if (typeof populateDashFilters  === 'function') {
+      const sumRow = G.summary.find(s => s.lab_number == labNum);
+      if (sumRow) { sumRow.sampling_date = newDate; populateDashFilters(); }
+    }
+  }
+
   G.samplesLoaded = false;
   inner.dataset.editing = 'false';
   inner.innerHTML = '<div class="loading"></div>';
