@@ -256,9 +256,17 @@ async function loadSamples() {
   const tbody = document.getElementById('samples-tbody');
   tbody.innerHTML = '<tr><td colspan="10" class="loading"></td></tr>';
 
-  const { data, error } = await sb.from('v_summary').select('*').order('lab_number');
+  const [summaryRes, datesRes] = await Promise.all([
+    sb.from('v_summary').select('*').order('lab_number'),
+    sb.from('samples').select('lab_number, sampling_date')
+  ]);
 
+  const { data, error } = summaryRes;
   if (error || !data) { tbody.innerHTML = '<tr><td colspan="10" class="empty">Ошибка загрузки</td></tr>'; return; }
+
+  // Build date map from samples table (v_summary may not expose sampling_date)
+  const dateMap = {};
+  (datesRes.data || []).forEach(s => { if (s.sampling_date) dateMap[s.lab_number] = s.sampling_date; });
 
   const byLab = {};
   data.forEach(r => {
@@ -268,7 +276,7 @@ async function loadSamples() {
       series:        r.series,
       point_name:    r.point_name,
       point_type:    r.point_type,
-      sampling_date: r.sampling_date,
+      sampling_date: r.sampling_date || dateMap[r.lab_number] || null,
       params: {
         'pH_lab':   { raw: r.ph_lab,              val: r.ph_lab,              lt: false },
         'TDS':      { raw: r.mineralization_mg_l, val: r.mineralization_mg_l, lt: false },
