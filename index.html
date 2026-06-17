@@ -54,7 +54,18 @@
     </div>
 
     <div class="panel">
-      <div class="panel-header">Сравнение серий 334 vs 354</div>
+      <div class="panel-header">Сравнение проб
+        <span style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          <select id="dash-year" style="font-size:12px;padding:3px 7px;border:1px solid var(--border);border-radius:4px"><option value="">Все годы</option></select>
+          <select id="dash-quarter" style="font-size:12px;padding:3px 7px;border:1px solid var(--border);border-radius:4px">
+            <option value="">Все кварталы</option>
+            <option value="1">Q1 (янв–мар)</option>
+            <option value="2">Q2 (апр–июн)</option>
+            <option value="3">Q3 (июл–сен)</option>
+            <option value="4">Q4 (окт–дек)</option>
+          </select>
+        </span>
+      </div>
       <div class="panel-body">
         <canvas id="chart-series" height="80"></canvas>
       </div>
@@ -64,17 +75,6 @@
 
   <!-- ═══════════════ ПРОБЫ ═══════════════ -->
   <div id="tab-samples" class="tab-panel">
-
-    <!-- Управление протоколами -->
-    <div class="panel" style="margin-bottom:16px">
-      <div class="panel-header protocol-mgr-header" onclick="toggleProtocolsPanel()">
-        <span>🗂️ Управление протоколами</span>
-        <span id="protocols-toggle-icon">▶</span>
-      </div>
-      <div id="protocols-panel" style="display:none">
-        <div class="panel-body" id="protocols-list"></div>
-      </div>
-    </div>
 
     <div class="panel">
       <div class="panel-header">Реестр проб</div>
@@ -86,17 +86,16 @@
             <option>фильтр</option><option>водокачка</option><option>водонаброс</option>
           </select>
         </div>
-        <div><label>Серия:</label>
-          <select id="filter-series">
-            <option value="">Все</option>
-            <option>334</option><option>354</option>
-          </select>
+        <div><label>Год:</label>
+          <select id="filter-year"><option value="">Все</option></select>
         </div>
-        <div><label>Протокол:</label>
-          <select id="filter-protocol">
+        <div><label>Квартал:</label>
+          <select id="filter-quarter">
             <option value="">Все</option>
-            <option>334/4</option><option>334/5</option><option>334/6</option>
-            <option>354/1</option><option>354/5</option>
+            <option value="1">Q1 (янв–мар)</option>
+            <option value="2">Q2 (апр–июн)</option>
+            <option value="3">Q3 (июл–сен)</option>
+            <option value="4">Q4 (окт–дек)</option>
           </select>
         </div>
         <div><label>Поиск:</label>
@@ -123,6 +122,26 @@
     <div class="panel">
       <div class="panel-header">Превышения ПДК питьевой воды <span class="badge" id="exceed-count-badge"></span></div>
       <div class="panel-body" style="padding-bottom:0">
+        <div class="filters" style="margin-bottom:12px">
+          <div><label>Год:</label>
+            <select id="exceed-year"><option value="">Все</option></select>
+          </div>
+          <div><label>Квартал:</label>
+            <select id="exceed-quarter">
+              <option value="">Все</option>
+              <option value="1">Q1 (янв–мар)</option>
+              <option value="2">Q2 (апр–июн)</option>
+              <option value="3">Q3 (июл–сен)</option>
+              <option value="4">Q4 (окт–дек)</option>
+            </select>
+          </div>
+          <div><label>Точка отбора:</label>
+            <select id="exceed-point"><option value="">Все</option></select>
+          </div>
+          <div><label>Показатель:</label>
+            <select id="exceed-param"><option value="">Все</option></select>
+          </div>
+        </div>
         <div class="severity-bar" id="severity-bar"></div>
       </div>
       <div class="table-wrap">
@@ -143,11 +162,26 @@
   <!-- ═══════════════ СРАВНЕНИЕ ═══════════════ -->
   <div id="tab-comparison" class="tab-panel">
 
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-      <strong>Показать серию:</strong>
-      <button class="btn btn-outline btn-sm series-btn active" data-series="">Все</button>
-      <button class="btn btn-outline btn-sm series-btn" data-series="334">334 (июнь)</button>
-      <button class="btn btn-outline btn-sm series-btn" data-series="354">354 (июнь)</button>
+    <div class="filters" style="margin-bottom:16px">
+      <div><label>Год:</label>
+        <select id="comp-year"><option value="">Все годы</option></select>
+      </div>
+      <div><label>Квартал:</label>
+        <select id="comp-quarter">
+          <option value="">Все кварталы</option>
+          <option value="1">Q1 (янв–мар)</option>
+          <option value="2">Q2 (апр–июн)</option>
+          <option value="3">Q3 (июл–сен)</option>
+          <option value="4">Q4 (окт–дек)</option>
+        </select>
+      </div>
+      <div><label>Тип точки:</label>
+        <select id="comp-point-type">
+          <option value="">Все</option>
+          <option>скважина</option><option>зумпф</option>
+          <option>фильтр</option><option>водокачка</option><option>водонаброс</option>
+        </select>
+      </div>
     </div>
 
     <div class="charts-grid">
@@ -160,7 +194,7 @@
     </div>
 
     <div class="panel">
-      <div class="panel-header">До / После фильтра (лаб. 726 vs 727)</div>
+      <div class="panel-header">Динамика по кварталам</div>
       <div class="panel-body">
         <canvas id="ch-filter" height="80"></canvas>
       </div>

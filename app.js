@@ -68,6 +68,51 @@ function typeBadge(type) {
   return `<span class="badge-type">${type ?? ''}</span>`;
 }
 
+function getYear(r)    { const d = r.sampling_date; return d ? new Date(d).getFullYear() : null; }
+function getQuarter(r) { const d = r.sampling_date; return d ? Math.floor(new Date(d).getMonth() / 3) + 1 : null; }
+function yrqLabel(r)   { const y = getYear(r); const q = getQuarter(r); return y ? (q ? `${y} Q${q}` : String(y)) : null; }
+
+function populateDashFilters() {
+  const years = [...new Set(G.summary.map(getYear).filter(Boolean))].sort();
+  const sel = document.getElementById('dash-year');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Все годы</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function populateSampleFilters() {
+  const rows = Object.values(G.samplesData || {});
+  const years = [...new Set(rows.map(getYear).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-year');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Все</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function populateCompFilters() {
+  const years = [...new Set((G.summaryAll || G.summary).map(getYear).filter(Boolean))].sort();
+  const sel = document.getElementById('comp-year');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Все годы</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function populateExceedFilters() {
+  const data = G.exceedData || [];
+  const years  = [...new Set(data.map(r => { const s = G.summary.find(x => x.lab_number == r.lab_number); return s ? getYear(s) : null; }).filter(Boolean))].sort();
+  const points = [...new Set(data.map(r => r.point_name).filter(Boolean))].sort();
+  const params  = [...new Set(data.map(r => r.parameter).filter(Boolean))].sort();
+  const selYr = document.getElementById('exceed-year');
+  const selPt = document.getElementById('exceed-point');
+  const selPa = document.getElementById('exceed-param');
+  if (selYr) selYr.innerHTML = '<option value="">Все</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (selPt) selPt.innerHTML = '<option value="">Все</option>' + points.map(p => `<option>${p}</option>`).join('');
+  if (selPa) selPa.innerHTML = '<option value="">Все</option>' + params.map(p => `<option>${p}</option>`).join('');
+}
+
 // ── Load norms from DB ────────────────────────────────────
 async function loadNorms() {
   const { data } = await sb.from('norms')
@@ -97,6 +142,7 @@ async function loadDashboard() {
 
     // Сводка
     G.summary = summaryRes.data || [];
+    populateDashFilters();
     statusEl.textContent = '✅ Supabase подключён';
     statusEl.className = 'ok';
 
@@ -160,27 +206,43 @@ function renderSummaryTable() {
 
 
 function renderSeriesChart() {
-  const params = ['Минерализация', 'Хлориды', 'Сульфаты', 'Нитраты'];
-  const formulas = ['TDS', 'Cl-', 'SO4', 'NO3-'];
-  const fields   = ['mineralization_mg_l', 'chlorides_mg_l', 'sulfates_mg_l', 'nitrates_mg_l'];
+  const yearF = document.getElementById('dash-year')?.value || '';
+  const qF    = document.getElementById('dash-quarter')?.value || '';
 
-  const s334 = G.summary.filter(r => r.protocol?.startsWith('334'));
-  const s354 = G.summary.filter(r => r.protocol?.startsWith('354'));
-  const avg = (arr, field) => {
-    const vals = arr.map(r => r[field]).filter(v => v != null);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-  };
+  let data = G.summary.filter(r => {
+    if (yearF && getYear(r) != yearF)    return false;
+    if (qF    && getQuarter(r) != +qF)  return false;
+    return true;
+  });
 
-  const ctx = document.getElementById('chart-series').getContext('2d');
+  const groups = {};
+  data.forEach(r => {
+    const label = yrqLabel(r) || 'Без даты';
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(r);
+  });
+
+  const paramLabels = ['Минерализация', 'Хлориды', 'Сульфаты', 'Нитраты'];
+  const fields      = ['mineralization_mg_l', 'chlorides_mg_l', 'sulfates_mg_l', 'nitrates_mg_l'];
+  const avg = (arr, f) => { const v = arr.map(r => r[f]).filter(x => x != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0; };
+
+  const COLORS = ['rgba(46,117,182,.7)','rgba(31,78,121,.7)','rgba(192,0,0,.7)','rgba(255,140,0,.7)','rgba(55,86,35,.7)'];
+  const keys = Object.keys(groups).sort();
+
+  const ctx = document.getElementById('chart-series')?.getContext('2d');
+  if (!ctx) return;
   if (G.charts.series) G.charts.series.destroy();
   G.charts.series = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: params,
-      datasets: [
-        { label: 'Серия 334', data: fields.map(f => avg(s334, f)), backgroundColor: 'rgba(46,117,182,.7)', borderColor: '#2E75B6', borderWidth: 1 },
-        { label: 'Серия 354', data: fields.map(f => avg(s354, f)), backgroundColor: 'rgba(31,78,121,.7)', borderColor: '#1F4E79', borderWidth: 1 },
-      ]
+      labels: paramLabels,
+      datasets: keys.map((key, i) => ({
+        label: key,
+        data: fields.map(f => +avg(groups[key], f).toFixed(2)),
+        backgroundColor: COLORS[i % COLORS.length],
+        borderColor: COLORS[i % COLORS.length].replace('.7','1'),
+        borderWidth: 1
+      }))
     },
     options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
   });
@@ -217,21 +279,22 @@ async function loadSamples() {
   });
   G.samplesData = byLab;
   G.samplesLoaded = true;
+  populateSampleFilters();
   renderSamplesTable();
 }
 
 function renderSamplesTable() {
-  const typeF   = document.getElementById('filter-type').value;
-  const seriesF = document.getElementById('filter-series').value;
-  const protoF  = document.getElementById('filter-protocol').value;
-  const searchF = document.getElementById('filter-search').value.toLowerCase();
-  const tbody   = document.getElementById('samples-tbody');
+  const typeF    = document.getElementById('filter-type')?.value || '';
+  const yearF    = document.getElementById('filter-year')?.value || '';
+  const quarterF = document.getElementById('filter-quarter')?.value || '';
+  const searchF  = (document.getElementById('filter-search')?.value || '').toLowerCase();
+  const tbody    = document.getElementById('samples-tbody');
 
   const rows = Object.values(G.samplesData || {}).filter(r =>
-    (!typeF   || r.point_type === typeF) &&
-    (!seriesF || r.series === seriesF) &&
-    (!protoF  || r.protocol === protoF) &&
-    (!searchF || r.point_name?.toLowerCase().includes(searchF))
+    (!typeF    || r.point_type === typeF) &&
+    (!yearF    || getYear(r) == yearF) &&
+    (!quarterF || getQuarter(r) == +quarterF) &&
+    (!searchF  || r.point_name?.toLowerCase().includes(searchF))
   );
 
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">Нет данных по фильтру</td></tr>'; return; }
@@ -281,8 +344,11 @@ async function toggleDetail(labNum, btn) {
   }
 }
 
-['filter-type','filter-series','filter-protocol','filter-search'].forEach(id => {
+['filter-type','filter-year','filter-quarter','filter-search'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', () => { if (G.samplesLoaded) renderSamplesTable(); });
+});
+['dash-year','dash-quarter'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', renderSeriesChart);
 });
 
 // ══════════════════════════════════════════════════════════
@@ -293,26 +359,42 @@ async function buildExceedances() {
   const tbody = document.getElementById('exceed-tbody');
   tbody.innerHTML = '<tr><td colspan="8" class="loading"></td></tr>';
 
-  // Используем кэш если есть, иначе загружаем
-  let data;
-  if (G.exceedData) {
-    data = G.exceedData;
-  } else {
+  if (!G.exceedData) {
     const res = await sb.from('v_measurements_full')
       .select('lab_number,point_name,point_type,parameter,formula,unit,raw_value,numeric_value,is_less_than')
       .eq('is_less_than', false);
     if (res.error || !res.data) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Ошибка загрузки</td></tr>'; return; }
-    data = res.data;
-    G.exceedData = data;
+    G.exceedData = res.data;
+    populateExceedFilters();
+    ['exceed-year','exceed-quarter','exceed-point','exceed-param'].forEach(id => {
+      document.getElementById(id)?.addEventListener('change', renderExceedances);
+    });
   }
 
-  const exceedances = data
+  renderExceedances();
+}
+
+function renderExceedances() {
+  const yearF  = document.getElementById('exceed-year')?.value  || '';
+  const qF     = document.getElementById('exceed-quarter')?.value || '';
+  const pointF = document.getElementById('exceed-point')?.value  || '';
+  const paramF = document.getElementById('exceed-param')?.value  || '';
+  const tbody  = document.getElementById('exceed-tbody');
+
+  const exceedances = (G.exceedData || [])
     .map(r => {
       const limit = G.pdkNorms[r.formula] ?? PDK[r.formula];
       if (!limit || !r.numeric_value || r.numeric_value <= limit) return null;
-      return { ...r, limit, ratio: r.numeric_value / limit };
+      const sumRow = G.summary.find(s => s.lab_number == r.lab_number);
+      return { ...r, limit, ratio: r.numeric_value / limit, _year: getYear(sumRow), _q: getQuarter(sumRow) };
     })
     .filter(Boolean)
+    .filter(r =>
+      (!yearF  || r._year == yearF) &&
+      (!qF     || r._q == +qF) &&
+      (!pointF || r.point_name === pointF) &&
+      (!paramF || r.parameter === paramF)
+    )
     .sort((a, b) => b.ratio - a.ratio);
 
   document.getElementById('exceed-count-badge').textContent = exceedances.length + ' нарушений';
@@ -321,14 +403,17 @@ async function buildExceedances() {
   const high = exceedances.filter(r => r.ratio > 3 && r.ratio <= 10).length;
   const med  = exceedances.filter(r => r.ratio > 1 && r.ratio <= 3).length;
   document.getElementById('severity-bar').innerHTML = `
-    <div class="severity-item crit">🔴 Критично (>10×): ${crit}</div>
+    <div class="severity-item crit">🔴 Критично (&gt;10×): ${crit}</div>
     <div class="severity-item high">🟠 Высокое (3–10×): ${high}</div>
     <div class="severity-item med">🟡 Умеренное (1–3×): ${med}</div>`;
+
+  if (!exceedances.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Нет превышений по фильтру</td></tr>'; return; }
 
   tbody.innerHTML = exceedances.map(r => {
     let cls = 'cell-warn', badge = `<span class="badge-warn">×${r.ratio.toFixed(1)}</span>`;
     if (r.ratio > 10) { cls = 'cell-danger2'; badge = `<span class="badge-danger">×${r.ratio.toFixed(1)} КРИТИЧНО</span>`; }
     else if (r.ratio > 3) { cls = 'cell-danger'; badge = `<span class="badge-danger">×${r.ratio.toFixed(1)}</span>`; }
+    const yrq = r._year ? (r._q ? `${r._year} Q${r._q}` : r._year) : '—';
     return `<tr>
       <td><b>${r.point_name}</b></td>
       <td>${typeBadge(r.point_type)}</td>
@@ -345,28 +430,27 @@ async function buildExceedances() {
 // ══════════════════════════════════════════════════════════
 //  СРАВНЕНИЕ — ГРАФИКИ
 // ══════════════════════════════════════════════════════════
-let currentSeries = '';
-
-document.querySelectorAll('.series-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.series-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentSeries = btn.dataset.series;
-    if (G.chartsBuilt) renderAllCharts();
-  });
-});
-
 async function buildCharts() {
   G.chartsBuilt = true;
   const { data } = await sb.from('v_summary').select('*').order('lab_number');
   G.summaryAll = data || G.summary;
+  populateCompFilters();
+  ['comp-year','comp-quarter','comp-point-type'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => { renderAllCharts(); renderTrendByQuarter(); });
+  });
   renderAllCharts();
-  renderFilterChart();
+  renderTrendByQuarter();
 }
 
 function getFilteredSummary() {
-  if (!currentSeries) return G.summaryAll;
-  return (G.summaryAll || []).filter(r => r.protocol?.startsWith(currentSeries));
+  const yearF  = document.getElementById('comp-year')?.value       || '';
+  const qF     = document.getElementById('comp-quarter')?.value    || '';
+  const typeF  = document.getElementById('comp-point-type')?.value || '';
+  return (G.summaryAll || []).filter(r =>
+    (!yearF || getYear(r) == yearF) &&
+    (!qF    || getQuarter(r) == +qF) &&
+    (!typeF || r.point_type === typeF)
+  );
 }
 
 function makeBarChart(canvasId, labels, values, pdk, color) {
@@ -414,34 +498,49 @@ function renderAllCharts() {
   makeBarChart('ch-so4',  labels, data.map(r => r.sulfates_mg_l ?? 0),       500,  'rgba(100,130,170,.6)');
 }
 
-async function renderFilterChart() {
-  const { data } = await sb.from('v_measurements_full')
-    .select('lab_number,parameter,formula,unit,numeric_value')
-    .in('lab_number', [726, 727])
-    .in('formula', ['TDS','Cl-','SO4','TH','Fe_total']);
+function renderTrendByQuarter() {
+  const filtered = getFilteredSummary();
+  const fields   = ['mineralization_mg_l', 'chlorides_mg_l', 'sulfates_mg_l', 'nitrates_mg_l'];
+  const fLabels  = ['Минерализация', 'Хлориды', 'Сульфаты', 'Нитраты'];
 
-  if (!data) return;
-  const before = {}, after = {};
-  data.forEach(r => {
-    if (r.lab_number === 726) before[r.formula] = { val: r.numeric_value, name: r.parameter };
-    if (r.lab_number === 727) after[r.formula]  = { val: r.numeric_value, name: r.parameter };
+  // Group by year+quarter
+  const groups = {};
+  filtered.forEach(r => {
+    const key = yrqLabel(r) || 'Без даты';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
   });
+  const keys = Object.keys(groups).sort();
 
-  const keys = ['TDS','Cl-','SO4','TH','Fe_total'];
-  const labels = keys.map(k => before[k]?.name ?? k);
+  const avg = (arr, f) => { const v = arr.map(r => r[f]).filter(x => x != null); return v.length ? +(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2) : null; };
+
+  const COLORS = ['rgba(46,117,182,.7)','rgba(31,78,121,.7)','rgba(192,0,0,.7)','rgba(255,140,0,.7)','rgba(55,86,35,.7)'];
+
   const ctx = document.getElementById('ch-filter')?.getContext('2d');
   if (!ctx) return;
   if (G.charts['ch-filter']) G.charts['ch-filter'].destroy();
+
+  if (!keys.length) return;
+
   G.charts['ch-filter'] = new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
-      labels,
-      datasets: [
-        { label: 'До фильтра (лаб.726)',   data: keys.map(k => before[k]?.val ?? 0), backgroundColor: 'rgba(192,0,0,.6)' },
-        { label: 'После фильтра (лаб.727)', data: keys.map(k => after[k]?.val ?? 0),  backgroundColor: 'rgba(46,117,182,.7)' },
-      ]
+      labels: keys,
+      datasets: fields.map((f, i) => ({
+        label: fLabels[i],
+        data: keys.map(k => avg(groups[k], f)),
+        borderColor: COLORS[i % COLORS.length].replace('.7','1'),
+        backgroundColor: COLORS[i % COLORS.length],
+        tension: 0.3,
+        fill: false,
+        pointRadius: 5
+      }))
     },
-    options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true } }
+    }
   });
 }
 
@@ -602,6 +701,7 @@ function loadDemoData() {
   });
   document.getElementById('kpi-exceed').textContent = exceed;
   G.summaryAll = G.summary;
+  populateDashFilters();
   renderSummaryTable();
   renderSeriesChart();
 }
