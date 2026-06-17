@@ -275,7 +275,7 @@ async function toggleDetail(labNum, btn) {
   if (!isOpen && inner && !inner.innerHTML) {
     inner.innerHTML = '<div class="loading"></div>';
     const { data } = await sb.from('v_measurements_full')
-      .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
+      .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
       .eq('lab_number', labNum).order('category');
     if (data) renderDetailView(inner, labNum, data);
   }
