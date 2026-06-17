@@ -78,22 +78,41 @@ async function loadNorms() {
 async function loadDashboard() {
   const statusEl = document.getElementById('connection-status');
   try {
-    await loadNorms();
+    // Все запросы параллельно — вместо 4 последовательных
+    const [normsRes, summaryRes, paramsRes, measRes] = await Promise.all([
+      sb.from('norms').select('parameter_id, limit_value, parameters(formula)').eq('norm_type','питьевая').eq('limit_type','≤'),
+      sb.from('v_summary').select('*').order('lab_number'),
+      sb.from('parameters').select('id', { count: 'exact', head: true }),
+      sb.from('v_measurements_full').select('formula,numeric_value,is_less_than')
+    ]);
 
-    const { data: summary, error } = await sb.from('v_summary').select('*').order('lab_number');
-    if (error) throw error;
-    G.summary = summary || [];
+    if (summaryRes.error) throw summaryRes.error;
+
+    // Нормы
+    (normsRes.data || []).forEach(r => { if (r.parameters?.formula) G.pdkNorms[r.parameters.formula] = r.limit_value; });
+
+    // Сводка
+    G.summary = summaryRes.data || [];
     statusEl.textContent = '✅ Supabase подключён';
     statusEl.className = 'ok';
 
-    document.getElementById('kpi-samples').textContent = G.summary.length;
+    // KPI
+    document.getElementById('kpi-samples').textContent   = G.summary.length;
     document.getElementById('kpi-protocols').textContent = [...new Set(G.summary.map(r => r.protocol))].length;
+    document.getElementById('kpi-params').textContent    = paramsRes.count ?? 49;
 
-    const { count: pCount } = await sb.from('parameters').select('id', { count: 'exact', head: true });
-    document.getElementById('kpi-params').textContent = pCount ?? 49;
+    // Кэшируем измерения для вкладки превышений
+    G.allMeasurements = measRes.data || [];
+    let exceed = 0;
+    G.allMeasurements.forEach(r => {
+      if (r.is_less_than) return;
+      const limit = G.pdkNorms[r.formula] ?? PDK[r.formula];
+      if (limit && r.numeric_value > limit) exceed++;
+    });
+    document.getElementById('kpi-exceed').textContent = exceed;
+    G.exceedCount = exceed;
 
     renderSummaryTable();
-    await countExceedances();
     renderSeriesChart();
 
   } catch (e) {
@@ -135,19 +154,6 @@ function renderSummaryTable() {
   }).join('');
 }
 
-async function countExceedances() {
-  const { data } = await sb.from('v_measurements_full')
-    .select('formula, numeric_value')
-    .eq('is_less_than', false);
-  if (!data) return;
-  let count = 0;
-  data.forEach(r => {
-    const limit = G.pdkNorms[r.formula] ?? PDK[r.formula];
-    if (limit && r.numeric_value > limit) count++;
-  });
-  document.getElementById('kpi-exceed').textContent = count;
-  G.exceedCount = count;
-}
 
 function renderSeriesChart() {
   const params = ['Минерализация', 'Хлориды', 'Сульфаты', 'Нитраты'];
@@ -283,11 +289,18 @@ async function buildExceedances() {
   const tbody = document.getElementById('exceed-tbody');
   tbody.innerHTML = '<tr><td colspan="8" class="loading"></td></tr>';
 
-  const { data, error } = await sb.from('v_measurements_full')
-    .select('lab_number,point_name,point_type,parameter,formula,unit,raw_value,numeric_value,is_less_than')
-    .eq('is_less_than', false);
-
-  if (error || !data) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Ошибка загрузки</td></tr>'; return; }
+  // Используем кэш если есть, иначе загружаем
+  let data;
+  if (G.exceedData) {
+    data = G.exceedData;
+  } else {
+    const res = await sb.from('v_measurements_full')
+      .select('lab_number,point_name,point_type,parameter,formula,unit,raw_value,numeric_value,is_less_than')
+      .eq('is_less_than', false);
+    if (res.error || !res.data) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Ошибка загрузки</td></tr>'; return; }
+    data = res.data;
+    G.exceedData = data;
+  }
 
   const exceedances = data
     .map(r => {
