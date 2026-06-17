@@ -143,7 +143,7 @@ async function enterEditMode(labNum) {
   inner.innerHTML = '<div class="loading"></div>';
 
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, parameter_id')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
     .eq('lab_number', labNum).order('category');
 
   if (!data) { inner.innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
@@ -161,7 +161,7 @@ async function enterEditMode(labNum) {
         return `<div class="edit-param-row ${cls}">
           <label class="edit-param-label">${r.parameter}<span class="unit-tag">${r.unit}</span></label>
           <input type="text" class="edit-param-input"
-            data-formula="${r.formula}" data-param-id="${r.parameter_id}"
+            data-formula="${r.formula}"
             value="${val}" placeholder="—">
         </div>`;
       }).join('')}
@@ -174,7 +174,7 @@ async function cancelEditMode(labNum) {
   if (!inner) return;
   inner.innerHTML = '<div class="loading"></div>';
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, parameter_id')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
     .eq('lab_number', labNum).order('category');
   if (data) renderDetailView(inner, labNum, data);
 }
@@ -186,11 +186,19 @@ async function saveEditMode(labNum) {
   const { data: sample } = await sb.from('samples').select('id').eq('lab_number', labNum).maybeSingle();
   if (!sample) { toast('Проба не найдена', 'err'); return; }
 
+  // Ensure params are loaded
+  if (!G.params?.length) {
+    const { data: p } = await sb.from('parameters').select('id, formula').order('id');
+    G.params = p || [];
+  }
+  const paramMap = Object.fromEntries((G.params || []).map(p => [p.formula, p.id]));
+
   const inputs  = inner.querySelectorAll('.edit-param-input');
   const updates = [];
   for (const inp of inputs) {
     const raw     = inp.value.trim();
-    const paramId = parseInt(inp.dataset.paramId);
+    const formula = inp.dataset.formula;
+    const paramId = paramMap[formula];
     if (!paramId) continue;
     const isEmpty = !raw || raw === '—';
     const isLess  = raw.startsWith('<');
@@ -212,7 +220,7 @@ async function saveEditMode(labNum) {
   inner.dataset.editing = 'false';
   inner.innerHTML = '<div class="loading"></div>';
   const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, parameter_id')
+    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than')
     .eq('lab_number', labNum).order('category');
   if (data) renderDetailView(inner, labNum, data);
 }
