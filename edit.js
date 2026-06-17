@@ -193,13 +193,20 @@ async function enterEditMode(labNum) {
   if (!inner) return;
   inner.innerHTML = '<div class="loading"></div>';
 
-  const { data } = await sb.from('v_measurements_full')
-    .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
-    .eq('lab_number', labNum).order('category');
+  const [measRes, sampleRes] = await Promise.all([
+    sb.from('v_measurements_full')
+      .select('parameter, unit, raw_value, numeric_value, formula, is_less_than, category')
+      .eq('lab_number', labNum).order('category'),
+    sb.from('samples').select('id, sampling_date').eq('lab_number', labNum).maybeSingle()
+  ]);
 
-  if (!data) { inner.innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
+  if (!measRes.data) { inner.innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
 
-  const groups = groupByCategory(data);
+  const sampDate = sampleRes.data?.sampling_date || '';
+  const sampYear = sampDate ? new Date(sampDate).getFullYear() : '—';
+  const sampQ    = sampDate ? 'Q' + (Math.floor(new Date(sampDate).getMonth() / 3) + 1) : '—';
+
+  const groups = groupByCategory(measRes.data);
   const allCats = [...CAT_ORDER, ...Object.keys(groups).filter(k => !CAT_ORDER.includes(k))];
   const groupsHtml = allCats
     .filter(cat => groups[cat]?.length)
@@ -230,7 +237,29 @@ async function enterEditMode(labNum) {
       <button class="btn btn-sm btn-primary" onclick="saveEditMode(${labNum})">💾 Сохранить изменения</button>
       <button class="btn btn-sm btn-outline" onclick="cancelEditMode(${labNum})">✕ Отмена</button>
     </div>
+    <div class="sample-date-edit">
+      <label class="sample-date-label">📅 Дата отбора пробы</label>
+      <input type="date" id="edit-sampling-date-${labNum}" class="form-inp" value="${sampDate}" style="width:180px">
+      <span class="sample-date-derived" id="edit-date-derived-${labNum}">
+        ${sampYear !== '—' ? `<span class="yrq-tag">${sampYear}</span><span class="yrq-tag">${sampQ}</span>` : '<span style="color:#aaa">дата не указана</span>'}
+      </span>
+    </div>
     ${groupsHtml}`;
+
+  // Live update year/quarter display when date changes
+  const dateInput = document.getElementById('edit-sampling-date-' + labNum);
+  const derived   = document.getElementById('edit-date-derived-' + labNum);
+  dateInput?.addEventListener('input', () => {
+    const d = dateInput.value;
+    if (d) {
+      const y = new Date(d).getFullYear();
+      const q = 'Q' + (Math.floor(new Date(d).getMonth() / 3) + 1);
+      derived.innerHTML = `<span class="yrq-tag">${y}</span><span class="yrq-tag">${q}</span>`;
+    } else {
+      derived.innerHTML = '<span style="color:#aaa">дата не указана</span>';
+    }
+  });
+
   inner.dataset.editing = 'true';
 }
 
@@ -250,6 +279,12 @@ async function saveEditMode(labNum) {
 
   const { data: sample } = await sb.from('samples').select('id').eq('lab_number', labNum).maybeSingle();
   if (!sample) { toast('Проба не найдена', 'err'); return; }
+
+  // Update sampling_date if changed
+  const newDate = document.getElementById('edit-sampling-date-' + labNum)?.value || null;
+  if (newDate !== undefined) {
+    await sb.from('samples').update({ sampling_date: newDate || null }).eq('id', sample.id);
+  }
 
   // Ensure params are loaded
   if (!G.params?.length) {
