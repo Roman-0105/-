@@ -20,6 +20,7 @@
   <button data-tab="comparison">📈 Сравнение</button>
   <button data-tab="entry">➕ Ввод данных</button>
   <button data-tab="upload">📥 Загрузка</button>
+  <button data-tab="analysis">🔬 Анализ</button>
 </nav>
 
 <main>
@@ -63,6 +64,18 @@
 
   <!-- ═══════════════ ПРОБЫ ═══════════════ -->
   <div id="tab-samples" class="tab-panel">
+
+    <!-- Управление протоколами -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-header protocol-mgr-header" onclick="toggleProtocolsPanel()">
+        <span>🗂️ Управление протоколами</span>
+        <span id="protocols-toggle-icon">▶</span>
+      </div>
+      <div id="protocols-panel" style="display:none">
+        <div class="panel-body" id="protocols-list"></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-header">Реестр проб</div>
       <div class="filters">
@@ -303,7 +316,59 @@
 
   </div>
 
+  <!-- ═══════════════ АНАЛИЗ ═══════════════ -->
+  <div id="tab-analysis" class="tab-panel">
+
+    <div class="panel">
+      <div class="panel-header">Соответствие международным стандартам качества воды</div>
+      <div class="panel-body">
+        <div id="analysis-compliance" class="compliance-grid"></div>
+        <div style="margin-top:12px;font-size:12px;color:var(--text-soft)">
+          Источники: ВОЗ «Руководство по качеству питьевой воды» 4-е изд. + 2022 г. | Директива ЕС 2020/2184 | СП РК 3.01-113-2013
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Профиль качества воды — % от нормы (СанПиН КЗ)</div>
+      <div class="panel-body" style="max-width:600px;margin:auto">
+        <canvas id="analysis-radar"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Сравнение с международными нормами по показателям</div>
+      <div class="panel-body">
+        <p style="color:var(--text-soft);font-size:12px;margin-bottom:16px">
+          Столбцы — средние значения по точкам. Пунктир: ВОЗ 2022 (синий), ЕС 2020 (зелёный), КЗ СанПиН (красный)
+        </p>
+        <div id="analysis-std-grid" class="charts-grid"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Динамика показателей по протоколам</div>
+      <div class="panel-body" id="analysis-trend-wrap"><div class="loading"></div></div>
+    </div>
+
+  </div>
+
 </main>
+
+<!-- ═══════════════ МОДАЛЬНОЕ ОКНО ═══════════════ -->
+<div id="app-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;align-items:center;justify-content:center">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="modal-title">Заголовок</span>
+      <button id="modal-close" class="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="modal-confirm">Сохранить</button>
+      <button class="btn btn-outline" id="modal-cancel">Отмена</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -313,5 +378,7 @@
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script src="upload.js"></script>
+<script src="edit.js"></script>
+<script src="analysis.js"></script>
 </body>
 </html>
