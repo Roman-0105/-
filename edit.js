@@ -280,11 +280,12 @@ async function saveEditMode(labNum) {
   const { data: sample } = await sb.from('samples').select('id').eq('lab_number', labNum).maybeSingle();
   if (!sample) { toast('Проба не найдена', 'err'); return; }
 
-  // Update sampling_date if changed
+  // Update sampling_date
   const newDate = document.getElementById('edit-sampling-date-' + labNum)?.value || null;
-  if (newDate !== undefined) {
-    await sb.from('samples').update({ sampling_date: newDate || null }).eq('id', sample.id);
-  }
+  const { error: dateErr } = await sb.from('samples')
+    .update({ sampling_date: newDate || null })
+    .eq('id', sample.id);
+  if (dateErr) { toast('Ошибка сохранения даты: ' + dateErr.message, 'err'); return; }
 
   // Ensure params are loaded
   if (!G.params?.length) {
@@ -315,11 +316,20 @@ async function saveEditMode(labNum) {
 
   if (error) { toast('Ошибка: ' + error.message, 'err'); return; }
 
-  toast('✅ Измерения сохранены', 'ok');
+  toast('✅ Измерения и дата сохранены', 'ok');
 
-  // Update in-memory cache with new date so filters refresh immediately
-  if (newDate && G.samplesData?.[labNum]) {
+  // Update in-memory cache so filters and table row refresh immediately
+  if (G.samplesData?.[labNum]) {
     G.samplesData[labNum].sampling_date = newDate;
+    // Update the date cell in the visible table row
+    const rows = document.querySelectorAll(`[data-lab="${labNum}"]`);
+    rows.forEach(btn => {
+      const tr = btn.closest('tr');
+      if (tr) {
+        const dateCell = tr.cells[5];
+        if (dateCell) dateCell.textContent = newDate ? new Date(newDate).toLocaleDateString('ru-RU') : '—';
+      }
+    });
     if (typeof populateSampleFilters === 'function') populateSampleFilters();
     if (typeof populateDashFilters  === 'function') {
       const sumRow = G.summary.find(s => s.lab_number == labNum);
