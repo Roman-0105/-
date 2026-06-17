@@ -4,6 +4,7 @@ let parsedProtocol = null;
 let excelProtocol = null;
 
 const ANTHROPIC_PROXY = 'https://anthropic-proxy.romanyukin01.workers.dev/';
+const API_KEY_STORAGE = 'rg_anthropic_api_key';
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -53,8 +54,11 @@ async function parsePdf() {
   if (!file) { toast('Выберите PDF файл', 'err'); return; }
 
   const apiKey = (keyInput && keyInput.value.trim()) ||
+    localStorage.getItem(API_KEY_STORAGE) ||
     (typeof ANTHROPIC_API_KEY !== 'undefined' ? ANTHROPIC_API_KEY : '');
   if (!apiKey) { toast('Введите Anthropic API ключ', 'err'); return; }
+  localStorage.setItem(API_KEY_STORAGE, apiKey);
+  if (keyInput && !keyInput.value.trim()) keyInput.value = apiKey;
 
   const btn = document.getElementById('btn-parse-pdf');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Анализ PDF...'; }
@@ -444,6 +448,11 @@ async function saveExcelData() {
 
 async function initUploadTab() {
   if (G.uploadBuilt) return;
+  const savedKey = localStorage.getItem(API_KEY_STORAGE);
+  if (savedKey) {
+    const keyInput = document.getElementById('anthropic-api-key');
+    if (keyInput) keyInput.value = savedKey;
+  }
   G.uploadBuilt = true;
 
   if (!G.points?.length) {
