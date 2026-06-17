@@ -67,10 +67,14 @@ async function parsePdf() {
     const base64 = await fileToBase64(file);
 
     const formulaList = [
-      'smell', 'taste', 'color', 'turbidity', 'pH_lab', 'pH_field', 'density',
-      'TDS', 'TH', 'NO3-', 'NO2-', 'SO4', 'Cl-', 'HCO3-', 'CO3',
-      'Na+', 'K+', 'Ca2+', 'Mg2+', 'Fe_total', 'Mn', 'F-', 'NH4+',
-      'Cu', 'Ni', 'OilProd', 'APAV', 'phenols', 'COD', 'BOD5'
+      'smell', 'taste', 'color', 'turbidity', 'clarity',
+      'pH_lab', 'pH_field', 'density',
+      'TDS', 'TH', 'alkalinity', 'dry_residue',
+      'NO3-', 'NO2-', 'SO4', 'Cl-', 'HCO3-', 'CO3', 'F-', 'PO4', 'Br',
+      'Na+', 'K+', 'Ca2+', 'Mg2+', 'NH4+', 'NH3_NH4',
+      'Fe_total', 'Fe2+', 'Fe3+', 'Mn', 'Cu', 'Ni', 'Al', 'Ba', 'Be',
+      'B', 'Cd', 'As', 'Hg', 'Pb', 'Se', 'Sr', 'Cr', 'Zn',
+      'Si', 'Mo', 'CN-', 'OilProd', 'APAV', 'phenols', 'COD', 'BOD5'
     ].join(', ');
 
     const prompt = `Ты — парсер химических протоколов анализа воды. Извлеки все данные из предоставленного PDF-документа и верни ТОЛЬКО валидный JSON без каких-либо пояснений, без markdown-обёртки.\n\nСтруктура JSON:\n{\n  "protocol_number": "334/4",\n  "series": "334",\n  "sampling_date_from": "2024-06-10",\n  "sampling_date_to": "2024-06-12",\n  "issued_at": "2024-06-20",\n  "samples": [\n    {\n      "lab_number": 726,\n      "client_number": 1,\n      "point_name": "До фильтра",\n      "point_type": "фильтр",\n      "sampling_date": "2024-06-10",\n      "measurements": [\n        { "formula": "pH_lab", "raw_value": "7.7", "numeric_value": 7.7, "is_less_than": false },\n        { "formula": "TDS", "raw_value": "<0.01", "numeric_value": 0.01, "is_less_than": true }\n      ]\n    }\n  ]\n}\n\nПравила:\n- Все даты в формате YYYY-MM-DD\n- lab_number и client_number — числа\n- Для значения "<0.01": numeric_value=0.01, is_less_than=true\n- raw_value — строка как в документе\n- Используй только коды формул: ${formulaList}\n- series — часть номера протокола до "/", верни ТОЛЬКО JSON`;
