@@ -84,7 +84,7 @@ async function parsePdf() {
       },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
-        max_tokens: 8192,
+        max_tokens: 32000,
         messages: [{
           role: 'user',
           content: [
