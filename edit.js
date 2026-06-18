@@ -311,9 +311,10 @@ async function saveEditMode(labNum) {
 
   if (!updates.length) { toast('Нет данных для сохранения', 'err'); return; }
 
-  const { error } = await sb.from('measurements')
-    .upsert(updates, { onConflict: 'sample_id,parameter_id' });
+  const { error: delErr } = await sb.from('measurements').delete().eq('sample_id', sample.id);
+  if (delErr) { toast('Ошибка удаления старых данных: ' + delErr.message, 'err'); return; }
 
+  const { error } = await sb.from('measurements').insert(updates);
   if (error) { toast('Ошибка: ' + error.message, 'err'); return; }
 
   toast('✅ Измерения и дата сохранены', 'ok');
