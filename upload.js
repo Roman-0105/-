@@ -164,12 +164,15 @@ async function callGeminiApi(base64, apiKey) {
       const err = await response.json().catch(() => ({}));
       lastError = err.error?.message || `HTTP ${response.status}`;
       console.warn(`Gemini ${label}: ${lastError}`);
-      if (response.status === 404 || response.status === 429 ||
+      if (response.status === 404 || response.status === 429 || response.status === 503 ||
           response.status === 401 || response.status === 403 ||
           lastError.includes('not found') || lastError.includes('not supported') ||
           lastError.includes('quota') || lastError.includes('limit: 0') ||
-          lastError.includes('credentials') || lastError.includes('permission')) continue;
-      throw new Error(lastError);
+          lastError.includes('credentials') || lastError.includes('permission') ||
+          lastError.includes('high demand') || lastError.includes('overloaded')) {
+        if (response.status === 503) await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
     }
 
     const data = await response.json();
