@@ -6,8 +6,17 @@ let excelProtocol = null;
 const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash'];
-const GEMINI_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
+// Each entry: [model, api_version]
+const GEMINI_MODELS = [
+  ['gemini-2.0-flash-lite',  'v1beta'],
+  ['gemini-2.0-flash-exp',   'v1beta'],
+  ['gemini-1.5-flash',       'v1'    ],
+  ['gemini-1.5-flash',       'v1beta'],
+  ['gemini-1.5-flash-001',   'v1'    ],
+  ['gemini-1.5-flash-8b',    'v1'    ],
+  ['gemini-2.0-flash',       'v1beta'],
+];
+const GEMINI_HOST = 'https://generativelanguage.googleapis.com';
 
 let currentProvider = 'gemini';
 
@@ -110,8 +119,9 @@ async function callGeminiApi(base64, apiKey) {
   });
 
   let lastError = '';
-  for (const model of GEMINI_MODELS) {
-    console.log(`Gemini: пробую модель ${model}...`);
+  for (const [model, ver] of GEMINI_MODELS) {
+    const label = `${model} (${ver})`;
+    console.log(`Gemini: пробую ${label}...`);
     const btn = document.getElementById('btn-parse-pdf');
     if (btn) btn.textContent = `⏳ ${model}...`;
 
@@ -121,7 +131,7 @@ async function callGeminiApi(base64, apiKey) {
 
     let response;
     try {
-      response = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+      response = await fetch(`${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -137,7 +147,7 @@ async function callGeminiApi(base64, apiKey) {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       lastError = err.error?.message || `HTTP ${response.status}`;
-      console.warn(`Gemini ${model}: ${lastError}`);
+      console.warn(`Gemini ${label}: ${lastError}`);
       if (response.status === 404 || response.status === 429 ||
           lastError.includes('not found') || lastError.includes('not supported') ||
           lastError.includes('quota') || lastError.includes('limit: 0')) continue;
@@ -152,7 +162,7 @@ async function callGeminiApi(base64, apiKey) {
     const finishReason = candidate?.finishReason;
     if (finishReason && finishReason !== 'STOP') {
       lastError = `Модель остановилась: ${finishReason}`;
-      console.warn(`Gemini ${model}: ${lastError}`);
+      console.warn(`Gemini ${label}: ${lastError}`);
       if (finishReason === 'MAX_TOKENS') {
         // partial response — try to use it anyway
         const partial = candidate?.content?.parts?.[0]?.text || '';
@@ -163,7 +173,7 @@ async function callGeminiApi(base64, apiKey) {
 
     const text = candidate?.content?.parts?.[0]?.text || '';
     if (!text) { lastError = 'Пустой ответ от модели'; continue; }
-    console.log(`Gemini: успех с моделью ${model}, текст: ${text.slice(0, 100)}...`);
+    console.log(`Gemini: успех с ${label}, текст: ${text.slice(0, 100)}...`);
     return cleanJson(text);
   }
   throw new Error('Gemini не смог обработать PDF. ' + lastError);
