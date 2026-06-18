@@ -9,14 +9,22 @@ const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
 // Each entry: [model, api_version, auth_method]
 // auth: 'key' = ?key=..., 'header' = x-goog-api-key header
 const GEMINI_MODELS = [
-  ['gemini-2.0-flash-lite',  'v1beta', 'key'   ],
-  ['gemini-2.0-flash-lite',  'v1beta', 'header'],
-  ['gemini-2.0-flash',       'v1beta', 'key'   ],
-  ['gemini-2.0-flash',       'v1beta', 'header'],
-  ['gemini-1.5-flash',       'v1',     'key'   ],
-  ['gemini-1.5-flash',       'v1',     'header'],
-  ['gemini-1.5-flash',       'v1beta', 'key'   ],
-  ['gemini-1.5-flash',       'v1beta', 'header'],
+  ['gemini-2.5-flash',          'v1beta', 'key'   ],
+  ['gemini-2.5-flash',          'v1beta', 'header'],
+  ['gemini-2.5-flash-preview-05-20', 'v1beta', 'key'   ],
+  ['gemini-2.5-flash-preview-05-20', 'v1beta', 'header'],
+  ['gemini-1.5-flash-latest',   'v1beta', 'key'   ],
+  ['gemini-1.5-flash-latest',   'v1beta', 'header'],
+  ['gemini-1.5-flash-002',      'v1beta', 'key'   ],
+  ['gemini-1.5-flash-002',      'v1beta', 'header'],
+  ['gemini-1.5-flash-001',      'v1beta', 'key'   ],
+  ['gemini-1.5-flash-001',      'v1beta', 'header'],
+  ['gemini-2.0-flash-lite',     'v1beta', 'key'   ],
+  ['gemini-2.0-flash-lite',     'v1beta', 'header'],
+  ['gemini-2.0-flash',          'v1beta', 'key'   ],
+  ['gemini-2.0-flash',          'v1beta', 'header'],
+  ['gemini-1.5-flash',          'v1',     'key'   ],
+  ['gemini-1.5-flash',          'v1',     'header'],
 ];
 const GEMINI_HOST = 'https://generativelanguage.googleapis.com';
 
