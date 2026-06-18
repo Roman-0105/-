@@ -282,10 +282,16 @@ async function saveEditMode(labNum) {
 
   // Update sampling_date
   const newDate = document.getElementById('edit-sampling-date-' + labNum)?.value || null;
-  const { error: dateErr } = await sb.from('samples')
+  const { data: updatedSample, error: dateErr } = await sb.from('samples')
     .update({ sampling_date: newDate || null })
-    .eq('id', sample.id);
+    .eq('id', sample.id)
+    .select('id');
   if (dateErr) { toast('Ошибка сохранения даты: ' + dateErr.message, 'err'); return; }
+  if (!updatedSample?.length) {
+    toast('Нет прав на обновление даты. Проверьте RLS-политики Supabase.', 'err');
+    console.error('samples.update вернул 0 строк — RLS или неверный id:', sample.id);
+    return;
+  }
 
   // Ensure params are loaded
   if (!G.params?.length) {
@@ -305,8 +311,10 @@ async function saveEditMode(labNum) {
     const isLess  = raw.startsWith('<');
     const numStr  = raw.replace('<', '').replace(',', '.');
     const numVal  = isEmpty ? null : (parseFloat(numStr) || null);
-    updates.push({ sample_id: sample.id, parameter_id: paramId,
-      raw_value: isEmpty ? null : raw, numeric_value: numVal, is_less_than: isLess });
+    updates.push({
+      sample_id: sample.id, parameter_id: paramId,
+      raw_value: isEmpty ? null : raw, numeric_value: numVal, is_less_than: isLess
+    });
   }
 
   if (!updates.length) { toast('Нет данных для сохранения', 'err'); return; }
@@ -314,15 +322,19 @@ async function saveEditMode(labNum) {
   const { error: delErr } = await sb.from('measurements').delete().eq('sample_id', sample.id);
   if (delErr) { toast('Ошибка удаления старых данных: ' + delErr.message, 'err'); return; }
 
-  const { error } = await sb.from('measurements').insert(updates);
-  if (error) { toast('Ошибка: ' + error.message, 'err'); return; }
+  const { data: inserted, error: insErr } = await sb.from('measurements').insert(updates).select('id');
+  if (insErr) { toast('Ошибка сохранения: ' + insErr.message, 'err'); return; }
+  if (!inserted?.length) {
+    toast('Нет прав на запись измерений. Проверьте RLS-политики Supabase.', 'err');
+    console.error('measurements.insert вернул 0 строк — RLS или пустой массив updates');
+    return;
+  }
 
-  toast('✅ Измерения и дата сохранены', 'ok');
+  toast(`✅ Сохранено: дата и ${inserted.length} измерений`, 'ok');
 
-  // Update in-memory cache so filters and table row refresh immediately
+  // Update in-memory cache
   if (G.samplesData?.[labNum]) {
     G.samplesData[labNum].sampling_date = newDate;
-    // Update the date cell in the visible table row
     const rows = document.querySelectorAll(`[data-lab="${labNum}"]`);
     rows.forEach(btn => {
       const tr = btn.closest('tr');
@@ -332,10 +344,11 @@ async function saveEditMode(labNum) {
       }
     });
     if (typeof populateSampleFilters === 'function') populateSampleFilters();
-    if (typeof populateDashFilters  === 'function') {
-      const sumRow = G.summary.find(s => s.lab_number == labNum);
-      if (sumRow) { sumRow.sampling_date = newDate; populateDashFilters(); }
-    }
+  }
+  if (G.summary) {
+    const sumRow = G.summary.find(s => s.lab_number == labNum);
+    if (sumRow) sumRow.sampling_date = newDate;
+    if (typeof populateDashFilters === 'function') populateDashFilters();
   }
 
   G.samplesLoaded = false;
