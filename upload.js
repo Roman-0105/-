@@ -111,28 +111,62 @@ async function callGeminiApi(base64, apiKey) {
 
   let lastError = '';
   for (const model of GEMINI_MODELS) {
-    const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body
-    });
+    console.log(`Gemini: пробую модель ${model}...`);
+    const btn = document.getElementById('btn-parse-pdf');
+    if (btn) btn.textContent = `⏳ ${model}...`;
+
+    // 90-second timeout
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+
+    let response;
+    try {
+      response = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller.signal
+      });
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      if (fetchErr.name === 'AbortError') { lastError = `Таймаут (${model})`; continue; }
+      throw fetchErr;
+    }
+    clearTimeout(timer);
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       lastError = err.error?.message || `HTTP ${response.status}`;
-      // model not found or quota 0 — try next
+      console.warn(`Gemini ${model}: ${lastError}`);
       if (response.status === 404 || response.status === 429 ||
           lastError.includes('not found') || lastError.includes('not supported') ||
           lastError.includes('quota') || lastError.includes('limit: 0')) continue;
       throw new Error(lastError);
     }
+
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!text) throw new Error('Gemini не вернул текст. Проверьте API ключ или попробуйте другой PDF.');
-    console.log(`Gemini: использована модель ${model}`);
+    console.log(`Gemini ${model} ответ:`, JSON.stringify(data).slice(0, 300));
+
+    // Check finish reason
+    const candidate = data.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    if (finishReason && finishReason !== 'STOP') {
+      lastError = `Модель остановилась: ${finishReason}`;
+      console.warn(`Gemini ${model}: ${lastError}`);
+      if (finishReason === 'MAX_TOKENS') {
+        // partial response — try to use it anyway
+        const partial = candidate?.content?.parts?.[0]?.text || '';
+        if (partial.length > 100) { console.log('Используем частичный ответ'); return cleanJson(partial); }
+      }
+      continue;
+    }
+
+    const text = candidate?.content?.parts?.[0]?.text || '';
+    if (!text) { lastError = 'Пустой ответ от модели'; continue; }
+    console.log(`Gemini: успех с моделью ${model}, текст: ${text.slice(0, 100)}...`);
     return cleanJson(text);
   }
-  throw new Error('Ни одна из моделей Gemini не доступна: ' + lastError);
+  throw new Error('Gemini не смог обработать PDF. ' + lastError);
 }
 
 async function parsePdf() {
@@ -165,9 +199,17 @@ async function parsePdf() {
       jsonText = await callAnthropicApi(base64, apiKey);
     }
 
-    parsedProtocol = JSON.parse(jsonText);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (jsonErr) {
+      console.error('Ошибка JSON парсинга. Ответ AI:', jsonText?.slice(0, 500));
+      throw new Error('AI вернул невалидный JSON. Попробуйте ещё раз или используйте другой провайдер.');
+    }
+    if (!parsed?.samples?.length) throw new Error('Пробы не найдены в PDF. Возможно, формат документа не распознан.');
+    parsedProtocol = parsed;
     renderPdfPreview(parsedProtocol);
-    toast(`✅ Извлечено ${parsedProtocol.samples?.length} проб`, 'ok');
+    toast(`✅ Извлечено ${parsedProtocol.samples.length} проб`, 'ok');
   } catch (e) {
     toast('Ошибка: ' + e.message, 'err');
     console.error(e);
