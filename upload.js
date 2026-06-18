@@ -6,15 +6,17 @@ let excelProtocol = null;
 const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
-// Each entry: [model, api_version]
+// Each entry: [model, api_version, auth_method]
+// auth: 'key' = ?key=..., 'bearer' = Authorization: Bearer ...
 const GEMINI_MODELS = [
-  ['gemini-2.0-flash-lite',  'v1beta'],
-  ['gemini-2.0-flash-exp',   'v1beta'],
-  ['gemini-1.5-flash',       'v1'    ],
-  ['gemini-1.5-flash',       'v1beta'],
-  ['gemini-1.5-flash-001',   'v1'    ],
-  ['gemini-1.5-flash-8b',    'v1'    ],
-  ['gemini-2.0-flash',       'v1beta'],
+  ['gemini-2.0-flash-lite',  'v1beta', 'key'   ],
+  ['gemini-2.0-flash-lite',  'v1beta', 'bearer'],
+  ['gemini-1.5-flash',       'v1beta', 'bearer'],
+  ['gemini-1.5-flash',       'v1',     'bearer'],
+  ['gemini-1.5-flash',       'v1beta', 'key'   ],
+  ['gemini-1.5-flash',       'v1',     'key'   ],
+  ['gemini-2.0-flash',       'v1beta', 'bearer'],
+  ['gemini-2.0-flash',       'v1beta', 'key'   ],
 ];
 const GEMINI_HOST = 'https://generativelanguage.googleapis.com';
 
@@ -119,11 +121,17 @@ async function callGeminiApi(base64, apiKey) {
   });
 
   let lastError = '';
-  for (const [model, ver] of GEMINI_MODELS) {
-    const label = `${model} (${ver})`;
+  for (const [model, ver, auth] of GEMINI_MODELS) {
+    const label = `${model} (${ver}, ${auth})`;
     console.log(`Gemini: пробую ${label}...`);
     const btn = document.getElementById('btn-parse-pdf');
     if (btn) btn.textContent = `⏳ ${model}...`;
+
+    const url = auth === 'bearer'
+      ? `${GEMINI_HOST}/${ver}/models/${model}:generateContent`
+      : `${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (auth === 'bearer') headers['Authorization'] = `Bearer ${apiKey}`;
 
     // 90-second timeout
     const controller = new AbortController();
@@ -131,9 +139,9 @@ async function callGeminiApi(base64, apiKey) {
 
     let response;
     try {
-      response = await fetch(`${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`, {
+      response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body,
         signal: controller.signal
       });
