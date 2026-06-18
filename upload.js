@@ -6,25 +6,14 @@ let excelProtocol = null;
 const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
-// Each entry: [model, api_version, auth_method]
-// auth: 'key' = ?key=..., 'header' = x-goog-api-key header
+// Only models active as of June 2026. gemini-2.0-* shut down, gemini-1.5-* deprecated.
+// Each entry: [model, auth_method]  — both use v1beta
+// auth: 'key' = ?key=..., 'header' = x-goog-api-key header (for AQ. format keys)
 const GEMINI_MODELS = [
-  ['gemini-2.5-flash',          'v1beta', 'key'   ],
-  ['gemini-2.5-flash',          'v1beta', 'header'],
-  ['gemini-2.5-flash-preview-05-20', 'v1beta', 'key'   ],
-  ['gemini-2.5-flash-preview-05-20', 'v1beta', 'header'],
-  ['gemini-1.5-flash-latest',   'v1beta', 'key'   ],
-  ['gemini-1.5-flash-latest',   'v1beta', 'header'],
-  ['gemini-1.5-flash-002',      'v1beta', 'key'   ],
-  ['gemini-1.5-flash-002',      'v1beta', 'header'],
-  ['gemini-1.5-flash-001',      'v1beta', 'key'   ],
-  ['gemini-1.5-flash-001',      'v1beta', 'header'],
-  ['gemini-2.0-flash-lite',     'v1beta', 'key'   ],
-  ['gemini-2.0-flash-lite',     'v1beta', 'header'],
-  ['gemini-2.0-flash',          'v1beta', 'key'   ],
-  ['gemini-2.0-flash',          'v1beta', 'header'],
-  ['gemini-1.5-flash',          'v1',     'key'   ],
-  ['gemini-1.5-flash',          'v1',     'header'],
+  ['gemini-2.5-flash-lite', 'key'   ],
+  ['gemini-2.5-flash-lite', 'header'],
+  ['gemini-2.5-flash',      'key'   ],
+  ['gemini-2.5-flash',      'header'],
 ];
 const GEMINI_HOST = 'https://generativelanguage.googleapis.com';
 
@@ -129,71 +118,72 @@ async function callGeminiApi(base64, apiKey) {
   });
 
   let lastError = '';
-  for (const [model, ver, auth] of GEMINI_MODELS) {
-    const label = `${model} (${ver}, ${auth})`;
-    console.log(`Gemini: пробую ${label}...`);
-    const btn = document.getElementById('btn-parse-pdf');
-    if (btn) btn.textContent = `⏳ ${model}...`;
 
+  for (const [model, auth] of GEMINI_MODELS) {
     const url = auth === 'key'
-      ? `${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`
-      : `${GEMINI_HOST}/${ver}/models/${model}:generateContent`;
+      ? `${GEMINI_HOST}/v1beta/models/${model}:generateContent?key=${apiKey}`
+      : `${GEMINI_HOST}/v1beta/models/${model}:generateContent`;
     const headers = { 'Content-Type': 'application/json' };
     if (auth === 'header') headers['x-goog-api-key'] = apiKey;
 
-    // 90-second timeout
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90000);
+    // Up to 3 retries per model for 503 overload
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const label = `${model} (${auth}, попытка ${attempt})`;
+      console.log(`Gemini: пробую ${label}...`);
+      const btn = document.getElementById('btn-parse-pdf');
+      if (btn) btn.textContent = `⏳ ${model}...`;
 
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body,
-        signal: controller.signal
-      });
-    } catch (fetchErr) {
-      clearTimeout(timer);
-      if (fetchErr.name === 'AbortError') { lastError = `Таймаут (${model})`; continue; }
-      throw fetchErr;
-    }
-    clearTimeout(timer);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120000);
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      lastError = err.error?.message || `HTTP ${response.status}`;
-      console.warn(`Gemini ${label}: ${lastError}`);
-      if (response.status === 404 || response.status === 429 ||
-          response.status === 401 || response.status === 403 ||
-          lastError.includes('not found') || lastError.includes('not supported') ||
-          lastError.includes('quota') || lastError.includes('limit: 0') ||
-          lastError.includes('credentials') || lastError.includes('permission')) continue;
-      throw new Error(lastError);
-    }
-
-    const data = await response.json();
-    console.log(`Gemini ${model} ответ:`, JSON.stringify(data).slice(0, 300));
-
-    // Check finish reason
-    const candidate = data.candidates?.[0];
-    const finishReason = candidate?.finishReason;
-    if (finishReason && finishReason !== 'STOP') {
-      lastError = `Модель остановилась: ${finishReason}`;
-      console.warn(`Gemini ${label}: ${lastError}`);
-      if (finishReason === 'MAX_TOKENS') {
-        // partial response — try to use it anyway
-        const partial = candidate?.content?.parts?.[0]?.text || '';
-        if (partial.length > 100) { console.log('Используем частичный ответ'); return cleanJson(partial); }
+      let response;
+      try {
+        response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+      } catch (fetchErr) {
+        clearTimeout(timer);
+        if (fetchErr.name === 'AbortError') { lastError = `Таймаут (${model})`; break; }
+        throw fetchErr;
       }
-      continue;
-    }
+      clearTimeout(timer);
 
-    const text = candidate?.content?.parts?.[0]?.text || '';
-    if (!text) { lastError = 'Пустой ответ от модели'; continue; }
-    console.log(`Gemini: успех с ${label}, текст: ${text.slice(0, 100)}...`);
-    return cleanJson(text);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        lastError = err.error?.message || `HTTP ${response.status}`;
+        console.warn(`Gemini ${label}: ${lastError}`);
+
+        if (response.status === 503) {
+          // Overloaded — wait and retry same model
+          const wait = attempt * 5000;
+          console.log(`Gemini: перегружен, жду ${wait / 1000}с...`);
+          if (btn) btn.textContent = `⏳ Перегружен, жду ${wait / 1000}с...`;
+          await new Promise(r => setTimeout(r, wait));
+          continue;
+        }
+        // Fatal for this model — skip to next
+        break;
+      }
+
+      const data = await response.json();
+      const candidate = data.candidates?.[0];
+      const finishReason = candidate?.finishReason;
+
+      if (finishReason && finishReason !== 'STOP') {
+        lastError = `Модель остановилась: ${finishReason}`;
+        console.warn(`Gemini ${label}: ${lastError}`);
+        if (finishReason === 'MAX_TOKENS') {
+          const partial = candidate?.content?.parts?.[0]?.text || '';
+          if (partial.length > 100) return cleanJson(partial);
+        }
+        break;
+      }
+
+      const text = candidate?.content?.parts?.[0]?.text || '';
+      if (!text) { lastError = 'Пустой ответ от модели'; break; }
+      console.log(`Gemini: успех с ${label}`);
+      return cleanJson(text);
+    }
   }
+
   throw new Error('Gemini не смог обработать PDF. ' + lastError);
 }
 
