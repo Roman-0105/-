@@ -7,16 +7,16 @@ const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
 // Each entry: [model, api_version, auth_method]
-// auth: 'key' = ?key=..., 'bearer' = Authorization: Bearer ...
+// auth: 'key' = ?key=..., 'header' = x-goog-api-key header
 const GEMINI_MODELS = [
   ['gemini-2.0-flash-lite',  'v1beta', 'key'   ],
-  ['gemini-2.0-flash-lite',  'v1beta', 'bearer'],
-  ['gemini-1.5-flash',       'v1beta', 'bearer'],
-  ['gemini-1.5-flash',       'v1',     'bearer'],
-  ['gemini-1.5-flash',       'v1beta', 'key'   ],
-  ['gemini-1.5-flash',       'v1',     'key'   ],
-  ['gemini-2.0-flash',       'v1beta', 'bearer'],
+  ['gemini-2.0-flash-lite',  'v1beta', 'header'],
   ['gemini-2.0-flash',       'v1beta', 'key'   ],
+  ['gemini-2.0-flash',       'v1beta', 'header'],
+  ['gemini-1.5-flash',       'v1',     'key'   ],
+  ['gemini-1.5-flash',       'v1',     'header'],
+  ['gemini-1.5-flash',       'v1beta', 'key'   ],
+  ['gemini-1.5-flash',       'v1beta', 'header'],
 ];
 const GEMINI_HOST = 'https://generativelanguage.googleapis.com';
 
@@ -127,11 +127,11 @@ async function callGeminiApi(base64, apiKey) {
     const btn = document.getElementById('btn-parse-pdf');
     if (btn) btn.textContent = `⏳ ${model}...`;
 
-    const url = auth === 'bearer'
-      ? `${GEMINI_HOST}/${ver}/models/${model}:generateContent`
-      : `${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`;
+    const url = auth === 'key'
+      ? `${GEMINI_HOST}/${ver}/models/${model}:generateContent?key=${apiKey}`
+      : `${GEMINI_HOST}/${ver}/models/${model}:generateContent`;
     const headers = { 'Content-Type': 'application/json' };
-    if (auth === 'bearer') headers['Authorization'] = `Bearer ${apiKey}`;
+    if (auth === 'header') headers['x-goog-api-key'] = apiKey;
 
     // 90-second timeout
     const controller = new AbortController();
@@ -157,8 +157,10 @@ async function callGeminiApi(base64, apiKey) {
       lastError = err.error?.message || `HTTP ${response.status}`;
       console.warn(`Gemini ${label}: ${lastError}`);
       if (response.status === 404 || response.status === 429 ||
+          response.status === 401 || response.status === 403 ||
           lastError.includes('not found') || lastError.includes('not supported') ||
-          lastError.includes('quota') || lastError.includes('limit: 0')) continue;
+          lastError.includes('quota') || lastError.includes('limit: 0') ||
+          lastError.includes('credentials') || lastError.includes('permission')) continue;
       throw new Error(lastError);
     }
 
