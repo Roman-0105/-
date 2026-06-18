@@ -258,8 +258,27 @@
 
     <!-- PDF -->
     <div class="panel">
-      <div class="panel-header">📄 Загрузка PDF-протокола через Claude AI</div>
+      <div class="panel-header">📄 Загрузка PDF-протокола через AI</div>
       <div class="panel-body">
+
+        <!-- Provider selector -->
+        <div class="provider-tabs">
+          <button class="provider-tab active" data-provider="gemini">
+            <span class="provider-logo">🆓</span>
+            <span>
+              <strong>Google Gemini</strong>
+              <small>Бесплатно · до 1М токенов/день</small>
+            </span>
+          </button>
+          <button class="provider-tab" data-provider="anthropic">
+            <span class="provider-logo">🤖</span>
+            <span>
+              <strong>Anthropic Claude</strong>
+              <small>Платно · ~$0.05–0.15 за протокол</small>
+            </span>
+          </button>
+        </div>
+
         <div class="upload-grid">
           <div>
             <div class="upload-drop-zone" id="pdf-drop-zone">
@@ -274,20 +293,30 @@
             </div>
           </div>
           <div>
-            <div class="form-group">
+            <!-- Gemini key (default visible) -->
+            <div id="key-block-gemini" class="form-group">
+              <label>Google Gemini API Key</label>
+              <input type="password" id="gemini-api-key" placeholder="AIzaSy..."
+                autocomplete="off" style="font-family:monospace;font-size:12px">
+              <div style="color:var(--text-soft);font-size:11px;margin-top:6px">
+                Получить бесплатно: <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#2E75B6">aistudio.google.com/apikey</a>
+                &nbsp;·&nbsp; Лимит: 15 запросов/мин, 1М токенов/день
+              </div>
+            </div>
+            <!-- Anthropic key (hidden by default) -->
+            <div id="key-block-anthropic" class="form-group" style="display:none">
               <label>Anthropic API Key</label>
               <input type="password" id="anthropic-api-key" placeholder="sk-ant-api03-..."
                 autocomplete="off" style="font-family:monospace;font-size:12px">
               <div style="color:var(--text-soft);font-size:11px;margin-top:6px">
                 Получить ключ: <a href="https://console.anthropic.com/keys" target="_blank" style="color:#2E75B6">console.anthropic.com/keys</a>
-                &nbsp;·&nbsp; Стоимость: ~$0.05–0.15 за протокол
               </div>
             </div>
             <div style="margin-top:20px">
               <button class="btn btn-primary" id="btn-parse-pdf">🔍 Извлечь данные</button>
             </div>
             <div style="margin-top:12px;color:var(--text-soft);font-size:12px">
-              Claude AI читает PDF и автоматически извлекает все пробы,
+              AI читает PDF и автоматически извлекает все пробы,
               точки отбора и значения показателей. После проверки — одна кнопка для сохранения в Supabase.
             </div>
           </div>
