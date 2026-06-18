@@ -6,8 +6,8 @@ let excelProtocol = null;
 const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
-const GEMINI_MODEL       = 'gemini-1.5-flash';
-const GEMINI_URL         = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
+const GEMINI_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 let currentProvider = 'gemini';
 
@@ -99,27 +99,38 @@ async function callAnthropicApi(base64, apiKey) {
 }
 
 async function callGeminiApi(base64, apiKey) {
-  const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: 'application/pdf', data: base64 } },
-          { text: buildPrompt() }
-        ]
-      }],
-      generationConfig: { maxOutputTokens: 32000, temperature: 0 }
-    })
+  const body = JSON.stringify({
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: 'application/pdf', data: base64 } },
+        { text: buildPrompt() }
+      ]
+    }],
+    generationConfig: { maxOutputTokens: 32000, temperature: 0 }
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${response.status}`);
+
+  let lastError = '';
+  for (const model of GEMINI_MODELS) {
+    const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      lastError = err.error?.message || `HTTP ${response.status}`;
+      // model not found — try next
+      if (response.status === 404 || lastError.includes('not found') || lastError.includes('not supported')) continue;
+      throw new Error(lastError);
+    }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) throw new Error('Gemini не вернул текст. Проверьте API ключ или попробуйте другой PDF.');
+    console.log(`Gemini: использована модель ${model}`);
+    return cleanJson(text);
   }
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!text) throw new Error('Gemini не вернул текст. Возможно, PDF слишком большой или ключ недействителен.');
-  return cleanJson(text);
+  throw new Error('Ни одна из моделей Gemini не доступна: ' + lastError);
 }
 
 async function parsePdf() {
