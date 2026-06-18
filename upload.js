@@ -6,7 +6,7 @@ let excelProtocol = null;
 const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
-const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash'];
 const GEMINI_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 let currentProvider = 'gemini';
@@ -120,8 +120,10 @@ async function callGeminiApi(base64, apiKey) {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       lastError = err.error?.message || `HTTP ${response.status}`;
-      // model not found — try next
-      if (response.status === 404 || lastError.includes('not found') || lastError.includes('not supported')) continue;
+      // model not found or quota 0 — try next
+      if (response.status === 404 || response.status === 429 ||
+          lastError.includes('not found') || lastError.includes('not supported') ||
+          lastError.includes('quota') || lastError.includes('limit: 0')) continue;
       throw new Error(lastError);
     }
     const data = await response.json();
