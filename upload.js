@@ -7,7 +7,7 @@ const ANTHROPIC_PROXY    = 'https://anthropic-proxy.romanyukin01.workers.dev/';
 const API_KEY_STORAGE    = 'rg_anthropic_api_key';
 const GEMINI_KEY_STORAGE = 'rg_gemini_api_key';
 const GEMINI_MODEL       = 'gemini-1.5-flash';
-const GEMINI_URL         = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_URL         = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 
 let currentProvider = 'gemini';
 
